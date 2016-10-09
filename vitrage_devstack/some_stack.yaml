@@ -1,0 +1,64 @@
+heat_template_version: 2013-05-23
+
+description: |
+  The heat template is used to demo
+
+parameters:
+  image:
+    type: string
+    default: TinyLinux
+  network:
+    type: string
+    default: NetA
+  flavor:
+    type: string
+    default: m1.nano
+
+resources:
+  server_1:
+    type: OS::Nova::Server
+    properties:
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      networks:
+        - network: { get_param: network }
+
+  server_2:
+    type: OS::Nova::Server
+    properties:
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      networks:
+        - network: { get_param: network }
+
+  cinder_volume_1:
+    type: OS::Cinder::Volume
+    properties:
+      size: 1
+
+  cinder_volume_2:
+    type: OS::Cinder::Volume
+    properties:
+      size: 1
+
+  volume_attachment_1:
+    type: OS::Cinder::VolumeAttachment
+    properties:
+      volume_id: { get_resource: cinder_volume_1 }
+      instance_uuid: { get_resource: server_1 }
+      mountpoint: /dev/sdb
+
+  volume_attachment_2:
+    type: OS::Cinder::VolumeAttachment
+    properties:
+      volume_id: { get_resource: cinder_volume_2 }
+      instance_uuid: { get_resource: server_2 }
+      mountpoint: /dev/sdb
+
+outputs:
+  single_console_type:
+    value: { get_attr: server_1, console_urls, novnc }
+    description: console URL for the server (novnc in this case)
+  all_console_urls:
+    value: { get_attr: [server_1, console_urls] }
+    description: all available console URLs for the server
