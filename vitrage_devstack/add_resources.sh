@@ -16,3 +16,4 @@ openstack subnet create subnetA --network NetA --subnet-range 8.8.8.0/24 --gatew
 echo "Creating Heat Stack"
 openstack stack create some_stack --template https://github.com/Idandos/somefiles/raw/master/vitrage_devstack/some_stack.yaml
 
+
