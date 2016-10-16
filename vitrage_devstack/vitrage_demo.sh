@@ -1,12 +1,12 @@
 #!/bin/sh
 
+echo "Starting zabbix"
+sudo service zabbix-server start
+sudo service zabbix-agent start
+
 echo "vitrage_demo.sh: Running stack.sh"
 cd /home/stack/devstack
 ./stack.sh
-
-echo "vitrage_demo.sh: Starting Nagios"
-sudo omd start my_site
-sudo service xinetd restart
 
 echo "vitrage_demo.sh: Configuring Devstack"
 . /home/stack/keystonerc
