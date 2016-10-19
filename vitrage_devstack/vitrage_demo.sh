@@ -13,14 +13,13 @@ echo "Starting zabbix"
 sudo service zabbix-server start
 sudo service zabbix-agent start
 
-echo "vitrage_demo.sh: Change to user stack"
-sudo su - stack
-cd ~
 
 echo "vitrage_demo.sh: Getting local.conf"
 cd /home/stack/devstack
 mv local.conf local.conf.orig
 wget https://github.com/Idandos/somefiles/raw/master/vitrage_devstack/local.conf
+wget -O /etc/vitrage/zabbix_conf.yaml https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/zabbix_conf.yaml
+sudo hostname compute-0-0
 
 echo "vitrage_demo.sh: Running stack.sh"
 ./stack.sh
