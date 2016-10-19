@@ -19,7 +19,7 @@ cd /home/stack/devstack
 mv local.conf local.conf.orig
 wget https://github.com/Idandos/somefiles/raw/master/vitrage_devstack/local.conf
 wget -O /etc/vitrage/zabbix_conf.yaml https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/zabbix_conf.yaml
-wget -O /tmp/host_high_cpu_load_scenarios.yaml https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/host_high_cpu_load_scenarios.yaml
+wget -O /home/stack/host_high_cpu_load_scenarios.yaml https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/host_high_cpu_load_scenarios.yaml
 sudo hostname compute-0-0
 
 echo "vitrage_demo.sh: Running stack.sh"
