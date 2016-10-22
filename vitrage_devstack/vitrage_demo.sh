@@ -21,7 +21,11 @@ wget https://github.com/Idandos/somefiles/raw/master/vitrage_devstack/local.conf
 wget -O /etc/vitrage/zabbix_conf.yaml https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/zabbix_conf.yaml
 wget -O /etc/vitrage/static_datasources/compute-0-1.yaml https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/static_datasources/compute-0-1.yaml
 wget -O /etc/vitrage/static_datasources/compute-0-1-instances.yaml https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/static_datasources/compute-0-1-instances.yaml
-wget -O /home/stack/host_high_cpu_load_scenarios.yaml https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/host_high_cpu_load_scenarios.yaml
+mkdir /home/stack/templates
+wget -O /home/stack/templates/host_high_cpu_load_scenarios.yaml https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/templates/host_high_cpu_load_scenarios.yaml
+wget -O /home/stack/templates/host_high_memory_load_scenarios.yaml https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/templates/host_high_memory_load_scenarios.yaml
+wget -O /home/stack/templates/stack_instance_problem.yaml https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/templates/stack_instance_problem.yaml
+
 sed -i.bak 's/stacks:global_index": "rule:deny_everybody/stacks:global_index": "/g' /etc/heat/policy.json
 sudo hostname compute-0-0
 

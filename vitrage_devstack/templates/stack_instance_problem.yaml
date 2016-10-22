@@ -1,0 +1,44 @@
+metadata:
+ name: stack_instance_problem
+ description: scenarios triggered by stack instance problem
+definitions:
+ entities:
+  - entity:
+     category: ALARM
+     template_id: instance_alarm
+  - entity:
+     category: RESOURCE
+     type: nova.instance
+     template_id: instance
+  - entity:
+     category: RESOURCE
+     type: heat.stack
+     template_id: stack
+ relationships:
+  - relationship:
+     source: stack
+     relationship_type: comprised
+     target: instance
+     template_id : stack_comprised_of_instance
+  - relationship:
+     source: instance_alarm
+     relationship_type: on
+     target: instance
+     template_id : alarm_on_instance
+scenarios:
+ - scenario:
+    condition: stack_comprised_of_instance and alarm_on_instance
+    actions:
+     - action:
+        action_type: raise_alarm
+        action_target:
+         target: stack
+        properties:
+         alarm_name: Application Danger
+         severity: warning
+     - action:
+        action_type: set_state
+        action_target:
+         target: stack
+        properties:
+         state: SUBOPTIMAL
