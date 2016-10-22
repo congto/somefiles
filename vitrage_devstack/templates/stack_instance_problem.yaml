@@ -34,7 +34,7 @@ scenarios:
         action_target:
          target: stack
         properties:
-         alarm_name: Application Danger
+         alarm_name: App Danger
          severity: warning
      - action:
         action_type: set_state
