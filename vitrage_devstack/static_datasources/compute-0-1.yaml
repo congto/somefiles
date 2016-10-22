@@ -1,0 +1,26 @@
+entities:
+ - type: nova.host
+   name: compute-0-1
+   id: compute-0-1
+   state: AVAILABLE
+   relationships:
+     - type: nova.zone
+       name: nova
+       id: nova
+       relation_type: contains
+       is_source: true
+     - type: nova.instance
+       name: dummy_1
+       id: dummy_1
+       relation_type: contains
+       is_source: false
+     - type: nova.instance
+       name: dummy_2
+       id: dummy_2
+       relation_type: contains
+       is_source: false
+     - type: nova.instance
+       name: dummy_3
+       id: dummy_3
+       relation_type: contains
+       is_source: false
