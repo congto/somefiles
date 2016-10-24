@@ -1,13 +1,15 @@
 metadata:
- name: stack_instance_problem
+ name: stack_instance_33problem
  description: scenarios triggered by stack instance problem
 definitions:
  entities:
   - entity:
      category: ALARM
+     severity: warning
      template_id: instance_alarm
   - entity:
      category: ALARM
+     severity: warning
      template_id: stack_alarm
   - entity:
      category: RESOURCE
@@ -58,12 +60,3 @@ scenarios:
         action_target:
          source: instance_alarm
          target: stack_alarm
- - scenario:
-    condition: alarm_on_stack
-    actions:
-     - action:
-        action_type: set_state
-        action_target:
-         target: stack
-        properties:
-         state: SUBOPTIMAL
