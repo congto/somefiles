@@ -7,6 +7,9 @@ definitions:
      category: ALARM
      template_id: instance_alarm
   - entity:
+     category: ALARM
+     template_id: stack_alarm
+  - entity:
      category: RESOURCE
      type: nova.instance
      template_id: instance
@@ -25,6 +28,11 @@ definitions:
      relationship_type: on
      target: instance
      template_id : alarm_on_instance
+  - relationship:
+     source: stack_alarm
+     relationship_type: on
+     target: stack
+     template_id : alarm_on_stack
 scenarios:
  - scenario:
     condition: stack_comprised_of_instance and alarm_on_instance
@@ -36,6 +44,23 @@ scenarios:
         properties:
          alarm_name: App Danger
          severity: warning
+     - action:
+        action_type: set_state
+        action_target:
+         target: stack
+        properties:
+         state: SUBOPTIMAL
+ - scenario:
+    condition: stack_comprised_of_instance and alarm_on_instance and alarm_on_stack
+    actions:
+     - action:
+        action_type: add_causal_relationship
+        action_target:
+         source: instance_alarm
+         target: stack_alarm
+ - scenario:
+    condition: alarm_on_stack
+    actions:
      - action:
         action_type: set_state
         action_target:
