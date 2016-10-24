@@ -4,13 +4,28 @@ entities:
    id: dummy_1
    state: ACTIVE
    relationships:
+     - type: nova.host
+       name: compute-0-1
+       id: compute-0-1
+       relation_type: contains
+       is_source: false
  - type: nova.instance
    name: dummy_2
    id: dummy_2
    state: ACTIVE
    relationships:
+     - type: nova.host
+       name: compute-0-1
+       id: compute-0-1
+       relation_type: contains
+       is_source: false
  - type: nova.instance
    name: dummy_3
    id: dummy_3
    state: ACTIVE
    relationships:
+     - type: nova.host
+       name: compute-0-1
+       id: compute-0-1
+       relation_type: contains
+       is_source: false
