@@ -37,18 +37,17 @@ m)  echo  "Raise Memory levels on Compute-0-0"
 mu) echo  "Undo raise Memory levels on Compute-0-0"
     pkill eatmemory
     ;;
-
 i)  echo  "ifdown public interface on Compute-0-0"
-    kill 123123123
+    touch /tmp/public-down
     ;;
 iu) echo  "ifup public interface on Compute-0-0"
-    kill 123123123
+    rm /tmp/public-down
     ;;
 s)  echo  "Switch-0 public port failure"
-    kill 123123123
+    touch /tmp/switch-port
     ;;
 su) echo  "Undo switch-0 public port failure"
-    kill 123123123
+    rm /tmp/switch-port
     ;;
 *)  echo "UNKOWN!!"
     ;;
