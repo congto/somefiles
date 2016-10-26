@@ -1,6 +1,6 @@
 #cloud-config
 #wget https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/ovh_cloud_init
-#nova boot vitrage-workshop --max-count <NUM OF VMS> --nic net-id=3f4e3b19-4a46-4672-aade-5654d1fc0704 --flavor e43d7458-6b82-4a78-a712-3a4dc6748cf4 --image 93f72424-af46-4d06-b422-e2fdbc62c566 --user-data ovh_cloud_init
+#nova boot vitrage-workshop --max-count <NUM OF VMS> --nic net-id=3f4e3b19-4a46-4672-aade-5654d1fc0704 --flavor e43d7458-6b82-4a78-a712-3a4dc6748cf4 --image b25ed03d-c7f7-443c-92d6-d7cfd379784d --user-data ovh_cloud_init
 users:
   - default
   - name: stack
