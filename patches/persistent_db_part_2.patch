@@ -1,0 +1,1075 @@
+Index: vitrage/graph/neo4j/neo4j_algorithm.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/graph/neo4j/neo4j_algorithm.py	(revision )
++++ vitrage/graph/neo4j/neo4j_algorithm.py	(revision )
+@@ -0,0 +1,75 @@
++# Copyright 2016 - Nokia
++#
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++# http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++
++from oslo_log import log as logging
++
++from vitrage.graph.algo_driver.algorithm import GraphAlgorithm
++from vitrage.graph.algo_driver.networkx_algorithm import NXAlgorithm
++from vitrage.graph.driver import Direction
++from vitrage.graph.neo4j.neo4j_graph import Neo4JGraph
++
++LOG = logging.getLogger(__name__)
++
++
++class Neo4JAlgorithm(GraphAlgorithm):
++
++    def __init__(self, graph):
++        """Create a new GraphAlgorithm
++
++        :param graph: graph instance
++        :type graph: Neo4JGraph
++        """
++        g_nx = graph.to_networkx()
++        super(Neo4JAlgorithm, self).__init__(g_nx)
++        self.nx_alg = NXAlgorithm(g_nx)
++
++    @property
++    def algo(self):
++        return Neo4JAlgorithm(self)
++
++    def graph_query_vertices(self,
++                             query_dict=None,
++                             root_id=None,
++                             depth=None,
++                             direction=Direction.BOTH,
++                             edge_query_dict=None):
++
++        return self.nx_alg.graph_query_vertices(
++            query_dict,
++            root_id,
++            depth,
++            direction,
++            edge_query_dict)
++
++    def sub_graph_matching(self, subgraph, known_matches, validate=False):
++        return self.nx_alg.sub_graph_matching(subgraph, known_matches, validate)
++
++    def create_graph_from_matching_vertices(self,
++                                            vertex_attr_filter=None,
++                                            query_dict=None,
++                                            edge_attr_filter=None):
++        return self.nx_alg.create_graph_from_matching_vertices(
++            vertex_attr_filter,
++            query_dict,
++            edge_attr_filter)
++
++    def subgraph(self, entities):
++        return self.nx_alg.subgraph(entities)
++
++    def connected_component_subgraphs(self, subgraph):
++        return self.nx_alg.connected_component_subgraphs(subgraph)
++
++    def all_simple_paths(self, source, target):
++        return self.nx_alg.all_simple_paths(source, target)
+Index: vitrage/tests/unit/graph/test_query.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/tests/unit/graph/test_query.py	(revision )
++++ vitrage/tests/unit/graph/test_query.py	(revision )
+@@ -0,0 +1,67 @@
++# Copyright 2016 - Nokia
++#
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++import logging
++
++from vitrage.common.constants import EntityCategory
++from vitrage.common.constants import VertexProperties as VProps
++from vitrage.datasources.nova.host import NOVA_HOST_DATASOURCE
++from vitrage.datasources.nova.instance import NOVA_INSTANCE_DATASOURCE
++from vitrage.datasources.nova.zone import NOVA_ZONE_DATASOURCE
++from vitrage.datasources import OPENSTACK_CLUSTER
++from vitrage.graph.query import create_cypher_query
++from vitrage.tests import base
++
++LOG = logging.getLogger(__name__)
++
++tree_topology = {
++    'and': [
++        {'==': {VProps.CATEGORY: EntityCategory.RESOURCE}},
++        {'==': {VProps.IS_DELETED: False}},
++        {'==': {VProps.IS_PLACEHOLDER: False}},
++        {
++            'or': [
++                {'==': {VProps.TYPE: OPENSTACK_CLUSTER}},
++                {'==': {VProps.TYPE: NOVA_INSTANCE_DATASOURCE}},
++                {'==': {VProps.TYPE: NOVA_HOST_DATASOURCE}},
++                {'==': {VProps.TYPE: NOVA_ZONE_DATASOURCE}}
++            ]
++        }
++    ]
++}
++
++project_query = \
++    {'or': [{'==': {VProps.PROJECT_ID: "123"}},
++            {'==': {VProps.PROJECT_ID: None}}]}
++
++class GraphQueryTest(base.BaseTest):
++
++    # noinspection PyPep8Naming
++    @classmethod
++    def setUpClass(cls):
++        pass
++
++    def test_query_to_cypher(self):
++        cypher = create_cypher_query(tree_topology)
++        self.assertEqual(
++            '''MATCH (n) WHERE ((n.category='RESOURCE') and (n.is_deleted=False) and (n.is_placeholder=False) and ((n.type='openstack.cluster') or (n.type='nova.instance') or (n.type='nova.host') or (n.type='nova.zone'))) RETURN n''',
++            cypher
++        )
++
++        cypher = create_cypher_query(project_query)
++        self.assertEqual(
++            '''MATCH (n) WHERE ((n.project_id='123') or (NOT exists(n.project_id))) RETURN n''',
++            cypher
++        )
++
+Index: vitrage/graph/neo4j/neo4j_graph.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/graph/neo4j/neo4j_graph.py	(revision )
++++ vitrage/graph/neo4j/neo4j_graph.py	(revision )
+@@ -0,0 +1,246 @@
++# Copyright 2016 - Nokia
++#
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++# http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++from copy import copy
++
++from py2neo import Graph as neo_graph, NodeSelector
++from py2neo import Node, Relationship
++
++from oslo_log import log as logging
++
++from vitrage.common.constants import EdgeProperties as EProps
++from vitrage.common.constants import VertexProperties as VProps
++from vitrage.common.exception import VitrageError
++from vitrage.graph.driver.networkx_graph import NXGraph
++from vitrage.graph import Notifier
++from vitrage.graph.driver.elements import Edge
++from vitrage.graph.driver.elements import Vertex
++from vitrage.graph.driver.graph import Direction
++from vitrage.graph.driver.graph import Graph
++from vitrage.graph.query import create_cypher_query
++
++LOG = logging.getLogger(__name__)
++logging.getLogger("neo4j.bolt").logger.setLevel(logging.WARNING)
++
++VERTEX_LABEL = 'VERTEX'
++
++
++class Neo4JGraph(Graph):
++
++    GRAPH_TYPE = "neo4j"
++
++    def __init__(self,
++                 name='neo4j_graph',
++                 root_id=None,
++                 vertices=None,
++                 edges=None):
++        super(Neo4JGraph, self).__init__(name, Neo4JGraph.GRAPH_TYPE)
++        self._g = neo_graph(password='password')
++
++        key = VProps.VITRAGE_ID
++        existing_indexes = self._g.schema.get_indexes(VERTEX_LABEL)
++        if key not in existing_indexes:
++            self._g.schema.create_index(VERTEX_LABEL, key)
++        self.root_id = root_id
++
++        self.clear()
++        self.add_vertices(vertices)
++        self.add_edges(edges)
++
++    def __len__(self):
++        return self.num_vertices()
++
++    def copy(self):
++        raise NotImplementedError('copy is not implemented')
++
++    def clear(self):
++        self._g.delete_all()
++
++    @Notifier.update_notify
++    def add_vertex(self, v):
++        # LOG.info("   ############   ADD VERTEX ### \n" + str(v) + "\n")
++        fixed_v = self._fix_vertex(v)
++        self._g.run("CREATE (n:VERTEX {properties})",
++                    parameters=fixed_v.__dict__)
++
++    @Notifier.update_notify
++    def add_edge(self, e):
++        q = 'MATCH (n1:VERTEX {vitrage_id: {source_id}})'
++        q += 'MATCH (n2:VERTEX {vitrage_id: {target_id}})'
++        q += ' CREATE (n1)-[r:' + e.label + ' {properties}]->(n2)'
++        self._g.run(q, parameters=e.__dict__)
++
++    def get_vertex(self, v_id):
++        n = self._g.run("MATCH (n) WHERE n.vitrage_id={x} RETURN n", x=v_id).evaluate()
++        return self._node_to_vertex(n)
++
++    def get_edge(self, source_id, target_id, label):
++        try:
++            r = self._g.run(
++                "MATCH (n1)-[r:" + label + "]->(n2) " +
++                "WHERE n1.vitrage_id={x} AND n2.vitrage_id={y} RETURN r",
++                x=source_id,
++                y=target_id
++            ).evaluate()
++            if r:
++                return self._relationship_to_edge(source_id, target_id, r)
++        except Exception:
++            return None
++        return None
++
++    def get_edges(self, v_id, direction=Direction.BOTH,
++                  attr_filter=None):
++        if direction == Direction.BOTH:
++            edges = self.get_edges(v_id, Direction.IN, attr_filter)
++            edges.union(self.get_edges(v_id, Direction.OUT, attr_filter))
++            return edges
++        elif direction == Direction.OUT:
++            match = 'MATCH (n1)-[r]->(n2)'
++        else:
++            match = 'MATCH (n1)<-[r]-(n2)'
++
++        where = ' WHERE n1.vitrage_id={x}'
++        if attr_filter:
++            for key, val in attr_filter.items():
++                where += ' AND n1.%s={%s}' % key, val
++
++        items = self._g.run(match + where + 'RETURN n1,n2,r', x=v_id)
++        edges = set()
++        for item in items:
++            if direction == Direction.OUT:
++                e = self._relationship_to_edge(item['n1']['vitrage_id'],  item['n2']['vitrage_id'], item['r'])
++                edges.add(e)
++            elif direction == Direction.IN:
++                e = self._relationship_to_edge(item['n2']['vitrage_id'],  item['n1']['vitrage_id'], item['r'])
++                edges.add(e)
++        return edges
++
++    def num_vertices(self):
++        return self._g.run('MATCH (`n: *`) RETURN count(*) as total').evaluate()
++
++    def num_edges(self):
++        return self._g.run('MATCH (n)-[r]->() return count(*) as total').evaluate()
++
++
++    @Notifier.update_notify
++    def update_vertex(self, v):
++        orig_v = self.get_vertex(v.vertex_id)
++        if orig_v:
++            orig_v.update(v)
++        n = self._vertex_to_node(orig_v)
++        self._g.merge(n, VERTEX_LABEL, 'vitrage_id')
++
++    @Notifier.update_notify
++    def update_edge(self, e):
++        r = self._edge_to_relationship(e)
++        self._g.merge(r, e.label)
++
++    def remove_vertex(self, v):
++        self._g.run("MATCH (n) WHERE n.vitrage_id={x} OPTIONAL MATCH (n)-[r]-() DELETE r,n", x=v.vertex_id)
++
++    def remove_edge(self, e):
++        self._g.run("MATCH (n1)-[r:" + e.label + "]->(n2) WHERE n1.vitrage_id={x} AND n2.vitrage_id={y} DELETE r", x=e.source_id, y=e.target_id)
++
++    def get_vertices(self, vertex_attr_filter=None, query_dict=None):
++        vertices = []
++        if vertex_attr_filter and query_dict:
++            raise VitrageError('Cannot use both vertex_attr_filter and query_dict')
++        elif not vertex_attr_filter:
++            q = create_cypher_query(query_dict)
++            nodes = self._g.run(q)
++            return [self._node_to_vertex(n[0]) for n in nodes]
++        elif vertex_attr_filter:
++            selector = NodeSelector(self._g)
++            nodes = selector.select(VERTEX_LABEL, **vertex_attr_filter)
++            return [self._node_to_vertex(n) for n in nodes]
++        return vertices
++
++    def neighbors(self, v_id, vertex_attr_filter=None, edge_attr_filter=None,
++                  direction=Direction.BOTH):
++        if direction == Direction.BOTH:
++            match = 'MATCH (n1)-[r]-(n2)'
++        elif direction == Direction.OUT:
++            match = 'MATCH (n1)-[r]->(n2)'
++        else:
++            match = 'MATCH (n1)<-[r]-(n2)'
++
++        where = ' WHERE n1.vitrage_id={x}'
++        if vertex_attr_filter:
++            for key, val in vertex_attr_filter.items():
++                where += " AND n2.{key}='{val}'".format(key=key,val=val)
++        if edge_attr_filter:
++            for key, val in edge_attr_filter.items():
++                where += " AND r.{key}='{val}'".format(key=key,val=val)
++
++        nodes = self._g.run(match + where + ' RETURN n2', x=v_id).data()
++        vertices = set()
++        for n in nodes:
++            vertices.add(self._node_to_vertex(n['n2']))
++        return list(vertices)
++
++    def json_output_graph(self, **kwargs):
++        return self.to_networkx().json_output_graph(kwargs)
++
++    def union(self, other_graph):
++        raise NotImplementedError('union is not implemented')
++
++    def to_networkx(self):
++        """ Transform neo4j graph to networkx graph
++
++        :rtype: NXGraph
++        """
++        items = self._g.run("MATCH (n1)-[r]->(n2) RETURN n1,n2,r")
++        edges = set()
++        for item in items:
++            e = self._relationship_to_edge(item['n1']['vitrage_id'],  item['n2']['vitrage_id'], item['r'])
++            edges.add(e)
++        vertices = self.get_vertices()
++        g_nx = NXGraph(self.name, vertices=vertices, edges=edges, root_id=self.root_id)
++        return g_nx
++
++    @classmethod
++    def _fix_vertex(cls, v):
++        new_v = Vertex(vertex_id=v.vertex_id)
++        for key, val in v.properties.items():
++            if isinstance(val, tuple) or isinstance(val,list):
++                #TODO(ihefetz) Need to make sure this uses the neo4j list, Ex:
++                #TODO(ihefetz) (n:MyLabel {ips: ["10.0.0.1", "12.1.1.1"] }]
++                new_v[key] = str(val)
++            else:
++                new_v[key] = copy(val)
++        return new_v
++
++    @classmethod
++    def _vertex_to_node(cls, v):
++        #TODO(ihefetz) FixMe
++        for key, val in v.properties.items():
++            if isinstance(val, tuple) or isinstance(val,list):
++                v.properties[key]=str(val)
++        n = Node(VERTEX_LABEL, **v.properties)
++        return n
++
++    @classmethod
++    def _node_to_vertex(cls, n):
++        if n is not None:
++            return Vertex(n[VProps.VITRAGE_ID], dict(n))
++        return None
++
++    def _edge_to_relationship(self, e):
++        source = self._g.run("MATCH (a) WHERE a.vitrage_id={x} RETURN a", x=e.source_id).evaluate()
++        target = self._g.run("MATCH (a) WHERE a.vitrage_id={x} RETURN a", x=e.target_id).evaluate()
++        r = Relationship(source, e.label, target, **e.properties)
++        return r
++
++    @classmethod
++    def _relationship_to_edge(cls, source_id, target_id, r):
++        return Edge(source_id, target_id, r.type(), dict(r))
+\ No newline at end of file
+Index: vitrage/tests/unit/graph/test_graph_.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/tests/unit/graph/test_graph_.py	(revision )
++++ vitrage/tests/unit/graph/test_graph_.py	(revision )
+@@ -0,0 +1,478 @@
++# Copyright 2016 - Alcatel-Lucent
++#
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++"""
++test_vitrage graph
++----------------------------------
++
++Tests for `vitrage` graph driver
++"""
++
++import unittest
++
++from vitrage.common.constants import EdgeProperties as EProps
++from vitrage.common.constants import VertexProperties as VProps
++from vitrage.graph import Direction
++from vitrage.graph import utils
++from vitrage.tests.unit.graph.base import *  # noqa
++
++LOG = logging.getLogger(__name__)
++
++
++class TestGraph___(GraphTestBase):
++
++    def test_graph(self):
++        g = create_graph('test_graph')
++        self.assertEqual('test_graph', g.name, 'graph name')
++        self.assertEqual(0, len(g), 'graph __len__')
++
++        g.add_vertex(v_node)
++        g.add_vertex(v_host)
++        g.add_edge(e_node_to_host)
++        self.assertEqual(2, len(g), 'graph __len__ after add vertices')
++
++        g.remove_vertex(v_node)
++        self.assertEqual(1, len(g), 'graph __len__ after remove vertex')
++
++        updated_vertex = g.get_vertex(v_host.vertex_id)
++        updated_vertex[VProps.CATEGORY] = ALARM
++        g.update_vertex(updated_vertex)
++        v_from_g = g.get_vertex(v_host.vertex_id)
++        self.assertEqual(ALARM, v_from_g[VProps.CATEGORY],
++                         'graph vertex changed after update')
++
++    def test_vertex_crud(self):
++        g = create_graph('test_vertex_crud')
++        g.add_vertex(v_node)
++        v = g.get_vertex(v_node.vertex_id)
++        self.assertEqual(v_node[VProps.ID], v[VProps.ID],
++                         'vertex properties are saved')
++        self.assertEqual(v_node[VProps.CATEGORY], v[VProps.CATEGORY],
++                         'vertex properties are saved')
++        self.assertEqual(v_node.vertex_id, v.vertex_id,
++                         'vertex vertex_id is saved')
++
++        # Changing the referenced item
++        updated_v = v
++        updated_v['KUKU'] = 'KUKU'
++        updated_v[VProps.CATEGORY] = 'CHANGED'
++        # Get it again
++        v = g.get_vertex(v_node.vertex_id)
++        self.assertIsNone(v.get('KUKU', None),
++                          'Change should not affect graph item')
++        self.assertFalse(v.get(EProps.IS_DELETED, None),
++                         'Change should not affect graph item')
++        self.assertEqual(v_node[VProps.CATEGORY], v[VProps.CATEGORY],
++                         'Change should not affect graph item')
++        # Update the graph item and see changes take place
++        g.update_vertex(updated_v)
++        # Get it again
++        v = g.get_vertex(v_node.vertex_id)
++        self.assertEqual(updated_v['KUKU'], v['KUKU'],
++                         'Graph item should change after update')
++        self.assertEqual(updated_v[VProps.CATEGORY], v[VProps.CATEGORY],
++                         'Graph item should change after update')
++
++        # Update the graph item and see changes take place
++        updated_v['KUKU'] = None
++        g.update_vertex(updated_v)
++        # Get it again
++        v = g.get_vertex(v_node.vertex_id)
++        self.assertFalse('KUKU' in v.properties,
++                         'Update value to None should entirely remove the key')
++
++        # check metadata
++        another_vertex = utils.create_vertex(
++            vitrage_id='123',
++            entity_id='456',
++            entity_category=NOVA_INSTANCE_DATASOURCE,
++            metadata={'some_meta': 'DATA'}
++        )
++        g.add_vertex(another_vertex)
++        v = g.get_vertex(another_vertex.vertex_id)
++        self.assertEqual(another_vertex[VProps.ID], v[VProps.ID],
++                         'vertex properties are saved')
++        self.assertEqual(another_vertex[VProps.CATEGORY], v[VProps.CATEGORY],
++                         'vertex properties are saved')
++        self.assertEqual('DATA', v['some_meta'],
++                         'vertex properties are saved')
++        self.assertEqual(another_vertex.vertex_id, v.vertex_id,
++                         'vertex vertex_id is saved')
++
++        # Remove the item
++        g.remove_vertex(another_vertex)
++        self.assertEqual(1, len(g), 'graph __len__ after remove vertex')
++        v = g.get_vertex(another_vertex.vertex_id)
++        self.assertIsNone(v, 'removed vertex not in graph')
++
++    def test_update_vertices(self):
++
++        # Test Setup
++        g = create_graph('test_update_vertices')
++        g.add_vertex(v_node)
++        v_node_copy = g.get_vertex(v_node.vertex_id)
++        v_node_copy[VProps.NAME] = 'test_node'
++        v_node_copy[VProps.CATEGORY] = 'super_node'
++
++        g.add_vertex(v_host)
++        v_host_copy = g.get_vertex(v_host.vertex_id)
++        v_host_copy[VProps.NAME] = 'test_host'
++
++        # Test Action
++        g.update_vertices([v_node_copy, v_host_copy])
++
++        # Test Assertions
++        updated_v_node = g.get_vertex(v_node.vertex_id)
++        self.assertEqual('test_node', updated_v_node[VProps.NAME])
++        self.assertEqual('super_node', updated_v_node[VProps.CATEGORY])
++
++        updated_v_host = g.get_vertex(v_host.vertex_id)
++        self.assertEqual('test_host', updated_v_host[VProps.NAME])
++
++    def test_edge_crud(self):
++        g = create_graph('test_edge_crud')
++        g.add_vertex(v_node)
++        g.add_vertex(v_host)
++        g.add_edge(e_node_to_host)
++        self.assertEqual(1, g.num_edges(), 'graph __len__ after add edge')
++        label = e_node_to_host[EProps.RELATIONSHIP_TYPE]
++        e = g.get_edge(v_node.vertex_id, v_host.vertex_id, label)
++        self.assertEqual(e_node_to_host[EProps.RELATIONSHIP_TYPE],
++                         e[EProps.RELATIONSHIP_TYPE],
++                         'edge properties are saved')
++        self.assertEqual(e_node_to_host.source_id, e.source_id,
++                         'edge vertex_id is saved')
++        self.assertEqual(e_node_to_host.target_id, e.target_id,
++                         'edge vertex_id is saved')
++
++        # Edge is correct
++        v_node_neig = g.neighbors(v_node.vertex_id, direction=Direction.OUT)
++        self.assertEqual(1, len(v_node_neig),
++                         'v_node OUT neighbor count')
++        self.assertEqual(v_host.vertex_id, v_node_neig.pop().vertex_id,
++                         'v_node OUT neighbor is v_host')
++        v_node_neig = g.neighbors(v_node.vertex_id, direction=Direction.IN)
++        self.assertEqual(0, len(v_node_neig),
++                         'v_node IN neighbor count')
++        v_host_neig = g.neighbors(v_host.vertex_id, direction=Direction.OUT)
++        self.assertEqual(0, len(v_host_neig),
++                         'v_host OUT neighbor count')
++        v_host_neig = g.neighbors(v_host.vertex_id, direction=Direction.IN)
++        self.assertEqual(1, len(v_host_neig),
++                         'v_host IN neighbor count')
++        self.assertEqual(v_node.vertex_id, v_host_neig.pop().vertex_id,
++                         'v_host IN neighbor is v_node')
++
++        # Changing the referenced item
++        updated_e = e
++        updated_e[EProps.IS_DELETED] = 'KUKU'
++        updated_e[EProps.UPDATE_TIMESTAMP] = 'CHANGED'
++
++        # Get it again
++        e = g.get_edge(v_node.vertex_id, v_host.vertex_id, label)
++        self.assertFalse(e.get(EProps.IS_DELETED, None),
++                         'Change should not affect graph item')
++        self.assertEqual(e_node_to_host[EProps.UPDATE_TIMESTAMP],
++                         e[EProps.UPDATE_TIMESTAMP],
++                         'Change should not affect graph item')
++        # Update the graph item and see changes take place
++        g.update_edge(updated_e)
++        # Get it again
++        e = g.get_edge(v_node.vertex_id, v_host.vertex_id, label)
++        self.assertEqual(updated_e[EProps.IS_DELETED],
++                         e[EProps.IS_DELETED],
++                         'Graph item should change after update')
++        self.assertEqual(updated_e[EProps.UPDATE_TIMESTAMP],
++                         e[EProps.UPDATE_TIMESTAMP],
++                         'Graph item should change after update')
++
++        # Update the graph item and see changes take place
++        updated_e[EProps.IS_DELETED] = None
++        g.update_edge(updated_e)
++        # Get it again
++        e = g.get_edge(v_node.vertex_id, v_host.vertex_id, label)
++        self.assertFalse(EProps.IS_DELETED in e.properties,
++                         'Update value to None should entirely remove the key')
++
++        # check metadata
++        another_label = 'ANOTHER_LABEL'
++        another_edge = utils.create_edge(
++            source_id=v_node.vertex_id,
++            target_id=v_host.vertex_id,
++            relationship_type=another_label,
++            metadata={'some_meta': 'DATA'})
++        g.add_edge(another_edge)
++        self.assertEqual(2, g.num_edges(), 'graph __len__ after add edge')
++        e = g.get_edge(v_node.vertex_id, v_host.vertex_id, another_label)
++        self.assertEqual(another_edge[EProps.RELATIONSHIP_TYPE],
++                         e[EProps.RELATIONSHIP_TYPE],
++                         'edge properties are saved')
++        self.assertEqual('DATA', e['some_meta'],
++                         'edge properties are saved')
++
++        # Remove the item
++        g.remove_edge(another_edge)
++        self.assertEqual(1, g.num_edges(), 'graph __len__ after remove edge')
++        e = g.get_edge(v_node.vertex_id, v_host.vertex_id, another_label)
++        self.assertIsNone(e, 'removed edge not in graph')
++
++        # Check get_edge returns None when item is missing
++        edge = g.get_edge(v_host.vertex_id, 'ddd', '333')
++        self.assertIsNone(edge)
++        edge = g.get_edge('eee', v_node.vertex_id, '333')
++        self.assertIsNone(edge)
++        edge = g.get_edge(v_host.vertex_id, v_node.vertex_id, None)
++        self.assertIsNone(edge)
++        edge = g.get_edge(None, v_node.vertex_id, '333')
++        self.assertIsNone(edge)
++
++    def test_neighbors(self):
++        relationship_a = 'RELATIONSHIP_A'
++        relationship_b = 'RELATIONSHIP_B'
++        relationship_c = 'RELATIONSHIP_C'
++
++        v1 = v_node
++        v2 = v_host
++        v3 = v_instance
++        v4 = v_alarm
++        v5 = utils.create_vertex(
++            vitrage_id='kuku',
++            entity_category=NOVA_HOST_DATASOURCE)
++
++        g = create_graph('test_neighbors')
++        g.add_vertex(v1)
++        g.add_vertex(v2)
++        g.add_vertex(v3)
++        g.add_vertex(v4)
++        g.add_vertex(v5)
++
++        g.add_edge(utils.create_edge(source_id=v1.vertex_id,
++                                     target_id=v2.vertex_id,
++                                     relationship_type=relationship_a))
++        g.add_edge(utils.create_edge(source_id=v1.vertex_id,
++                                     target_id=v2.vertex_id,
++                                     relationship_type=relationship_b))
++        g.add_edge(utils.create_edge(source_id=v1.vertex_id,
++                                     target_id=v4.vertex_id,
++                                     relationship_type=relationship_a))
++        g.add_edge(utils.create_edge(source_id=v1.vertex_id,
++                                     target_id=v4.vertex_id,
++                                     relationship_type=relationship_b))
++        g.add_edge(utils.create_edge(source_id=v2.vertex_id,
++                                     target_id=v1.vertex_id,
++                                     relationship_type=relationship_c))
++        g.add_edge(utils.create_edge(source_id=v2.vertex_id,
++                                     target_id=v3.vertex_id,
++                                     relationship_type=relationship_a))
++        g.add_edge(utils.create_edge(source_id=v2.vertex_id,
++                                     target_id=v3.vertex_id,
++                                     relationship_type=relationship_b))
++        g.add_edge(utils.create_edge(source_id=v2.vertex_id,
++                                     target_id=v4.vertex_id,
++                                     relationship_type=relationship_a))
++        g.add_edge(utils.create_edge(source_id=v4.vertex_id,
++                                     target_id=v1.vertex_id,
++                                     relationship_type=relationship_c))
++
++        # CHECK V1
++
++        v1_neighbors = g.neighbors(v_id=v1.vertex_id)
++        self._assert_set_equal({v2, v4}, v1_neighbors, 'Check V1 neighbors')
++
++        v1_neighbors = g.neighbors(
++            v_id=v1.vertex_id,
++            vertex_attr_filter={VProps.TYPE: NOVA_HOST_DATASOURCE})
++        self._assert_set_equal({v2}, v1_neighbors,
++                               'Check V1 neighbors, vertex property filter')
++
++        v1_neighbors = g.neighbors(
++            v_id=v1.vertex_id,
++            edge_attr_filter={EProps.RELATIONSHIP_TYPE: relationship_a})
++        self._assert_set_equal({v2, v4}, v1_neighbors,
++                               'Check V1 neighbors, edge property filter')
++
++        v1_neighbors = g.neighbors(v_id=v1.vertex_id,
++                                   direction=Direction.IN)
++        self._assert_set_equal({v2, v4}, v1_neighbors,
++                               'Check V1 neighbors, direction IN')
++
++        v1_neighbors = g.neighbors(v_id=v1.vertex_id,
++                                   direction=Direction.OUT)
++        self._assert_set_equal({v2, v4}, v1_neighbors,
++                               'Check V1 neighbors, direction OUT')
++
++        v1_neighbors = g.neighbors(v_id=v1.vertex_id,
++                                   direction=Direction.BOTH)
++        self._assert_set_equal({v2, v4}, v1_neighbors,
++                               'Check V1 neighbors, direction BOTH')
++
++        v1_neighbors = g.neighbors(
++            v_id=v1.vertex_id,
++            direction=Direction.IN,
++            edge_attr_filter={EProps.RELATIONSHIP_TYPE: relationship_c},
++            vertex_attr_filter={VProps.TYPE: NOVA_HOST_DATASOURCE})
++        self._assert_set_equal(
++            {v2}, v1_neighbors,
++            'Check V1 neighbors, vertex/edge property filter and direction')
++
++        # CHECK V2
++
++        v2_neighbors = g.neighbors(v_id=v2.vertex_id)
++        self._assert_set_equal({v1, v3, v4}, v2_neighbors,
++                               'Check v2 neighbors')
++
++        v2_neighbors = g.neighbors(
++            v_id=v2.vertex_id,
++            vertex_attr_filter={VProps.CATEGORY: NOVA_HOST_DATASOURCE})
++        self._assert_set_equal({}, v2_neighbors,
++                               'Check v2 neighbors, vertex property filter')
++
++        # v2_neighbors = g.neighbors(
++        #     v_id=v2.vertex_id,
++        #     vertex_attr_filter={VProps.CATEGORY: [NOVA_HOST_DATASOURCE,
++        #                                           ALARM]})
++        # self._assert_set_equal({v4}, v2_neighbors,
++        #                        'Check v2 neighbors, vertex property filter')
++
++        # v2_neighbors = g.neighbors(
++        #     v_id=v2.vertex_id,
++        #     edge_attr_filter={
++        #         EProps.RELATIONSHIP_TYPE: [relationship_a, relationship_b]
++        #     },
++        #     vertex_attr_filter={
++        #         VProps.CATEGORY: [RESOURCE, ALARM],
++        #         VProps.TYPE: [NOVA_HOST_DATASOURCE,
++        #                       NOVA_INSTANCE_DATASOURCE,
++        #                       ALARM_ON_VM,
++        #                       ALARM_ON_HOST]
++        #     }
++        # )
++        # self._assert_set_equal({v3, v4}, v2_neighbors,
++        #                        'Check v2 neighbors, edge property filter')
++
++        # CHECK V3
++
++        v3_neighbors = g.neighbors(v_id=v3.vertex_id, direction=Direction.OUT)
++        self._assert_set_equal({}, v3_neighbors,
++                               'Check v3 neighbors, direction OUT')
++
++        v3_neighbors = g.neighbors(
++            v_id=v3.vertex_id,
++            vertex_attr_filter={VProps.CATEGORY: NOVA_HOST_DATASOURCE},
++            direction=Direction.OUT)
++        self._assert_set_equal({}, v3_neighbors,
++                               'Check neighbors for vertex without any')
++        v5_neighbors = g.neighbors(
++            v_id=v5.vertex_id,
++            vertex_attr_filter={VProps.CATEGORY: NOVA_HOST_DATASOURCE})
++        self._assert_set_equal({}, v5_neighbors,
++                               'Check neighbors for not connected vertex')
++
++    #@unittest.skip("test_initializing_process skipping")
++    def test_get_vertices(self):
++        g = create_graph('test_get_vertices')
++        g.add_vertex(v_node)
++        g.add_vertex(v_host)
++        g.add_edge(e_node_to_host)
++
++        all_vertices = g.get_vertices()
++        self.assertEqual(2, len(all_vertices),
++                         'get_vertices __len__ all vertices')
++
++        node_vertices = g.get_vertices(
++            vertex_attr_filter={VProps.TYPE: OPENSTACK_CLUSTER})
++        self.assertEqual(1, len(node_vertices),
++                         'get_vertices __len__ node vertices')
++        found_vertex = node_vertices.pop()
++        self.assertEqual(OPENSTACK_CLUSTER, found_vertex[VProps.TYPE],
++                         'get_vertices check node vertex')
++
++        node_vertices = g.get_vertices(
++            vertex_attr_filter={VProps.TYPE: OPENSTACK_CLUSTER,
++                                VProps.CATEGORY: RESOURCE})
++        self.assertEqual(1, len(node_vertices),
++                         'get_vertices __len__ node vertices')
++        found_vertex = node_vertices.pop()
++        self.assertEqual(OPENSTACK_CLUSTER, found_vertex[VProps.TYPE],
++                         'get_vertices check node vertex')
++
++    def _check_callback_result(self, result, msg, exp_prev, exp_curr):
++
++        def assert_none_or_equals(exp, act, message):
++            if exp:
++                self.assertEqual(exp, act, message)
++            else:
++                self.assertIsNone(act, message)
++
++        self.assertIsNotNone(result, msg + ' Callback was not called')
++        assert_none_or_equals(exp_prev, result[0],
++                              msg + ' prev_item unexpected')
++        assert_none_or_equals(exp_curr, result[1],
++                              msg + ' curr_item unexpected')
++        self.result = None
++
++    def _assert_none_or_equals(self, exp, act, msg):
++            if exp:
++                self.assertEqual(exp, act, msg)
++            else:
++                self.assertIsNone(act, msg)
++
++    # noinspection PyAttributeOutsideInit
++    def test_graph_callbacks(self):
++
++        g = create_graph('test_graph_callbacks')
++        self.result = None
++
++        def callback(pre_item,
++                     current_item,
++                     is_vertex,
++                     graph):
++            LOG.info('called with: pre_event_item ' + str(pre_item) +
++                     ' current_item ' + str(current_item))
++            self.assertIsNotNone(current_item)
++            self.result = pre_item, current_item, is_vertex
++
++        # Check there is no notification without subscribing
++        g.add_vertex(v_alarm)
++        self.assertIsNone(
++            self.result,
++            'Got notification, but add_vertex notification is not registered')
++
++        # subscribe
++        g.subscribe(callback)
++
++        # These actions will trigger callbacks:
++        g.add_vertex(v_node)
++        self._check_callback_result(self.result, 'add vertex', None, v_node)
++
++        g.add_vertex(v_host)
++        self._check_callback_result(self.result, 'add vertex', None, v_host)
++
++        g.add_edge(e_node_to_host)
++        self._check_callback_result(self.result, 'add edge', None,
++                                    e_node_to_host)
++
++        updated_vertex = g.get_vertex(v_host.vertex_id)
++        updated_vertex[VProps.CATEGORY] = ALARM
++        g.update_vertex(updated_vertex)
++        self._check_callback_result(self.result, 'update vertex',
++                                    v_host, updated_vertex)
++
++        updated_edge = g.get_edge(e_node_to_host.source_id,
++                                  e_node_to_host.target_id,
++                                  e_node_to_host.label)
++        updated_edge['ZIG'] = 'ZAG'
++        g.update_edge(updated_edge)
++        self._check_callback_result(self.result, 'update edge', e_node_to_host,
++                                    updated_edge)
+\ No newline at end of file
+Index: requirements.txt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- requirements.txt	(date 1480234999000)
++++ requirements.txt	(revision )
+@@ -27,3 +27,4 @@
+ stevedore>=1.17.1 # Apache-2.0
+ voluptuous>=0.8.9 # BSD License
+ sympy>=0.7.6 # BSD
++py2neo>=3.1.2
+Index: test-requirements.txt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- test-requirements.txt	(date 1480234999000)
++++ test-requirements.txt	(revision )
+@@ -32,3 +32,4 @@
+ voluptuous>=0.8.9 # BSD License
+ sympy>=0.7.6 # BSD
+ reno>=1.8.0 # Apache-2.0
++py2neo>=3.1.2
+Index: vitrage/graph/query.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/graph/query.py	(date 1480234999000)
++++ vitrage/graph/query.py	(revision )
+@@ -19,15 +19,14 @@
+ 
+ LOG = logging.getLogger(__name__)
+ 
+-operators = [
+-    '<',
+-    '<=',
+-    # '=',
+-    '==',
+-    '!=',
+-    '>=',
+-    '>',
+-]
++operators = {
++    '<': '<',
++    '<=': '<=',
++    '==': '=',
++    '!=': '<>',
++    '>=': '>=',
++    '>': '>',
++}
+ 
+ logical_operations = [
+     'and',
+@@ -35,6 +34,26 @@
+ ]
+ 
+ 
++def create_cypher_query(query_dict, var_name='n'):
++    """TODO doc this
++
++    :param query:
++    :return:
++    """
++    # TODO(ihefetz) can inherit from a base query, and create cypher_query and nx_query classes
++    if not query_dict:
++        return "MATCH ({0}) RETURN {0}".format(var_name)
++
++    try:
++        expression = _create_query_expr(query_dict, None, True, var_name)
++        return ('MATCH ({0}) WHERE ' + expression + ' RETURN {0}').format(var_name)
++    except Exception as e:
++        LOG.error('invalid query format %s. Exception: %s',
++                  query_dict, e)
++        raise VitrageError('invalid query format %s. Exception: %s',
++                           query_dict, e)
++
++
+ def create_predicate(query_dict):
+     """Create predicate from a logical and/or/==/>/etc expression
+ 
+@@ -65,7 +84,7 @@
+     :return: a predicate "match(item)"
+     """
+     try:
+-        expression = _create_query_expression(query=query_dict)
++        expression = _create_query_expr(query=query_dict)
+         LOG.debug('create_predicate::%s', expression)
+         expression = 'lambda item: ' + expression
+         return eval(expression)
+@@ -76,29 +95,33 @@
+                            query_dict, e)
+ 
+ 
+-def _create_query_expression(query, parent_operator=None):
++def _create_query_expr(query, parent_op=None, cypher=False, var_name=None):
+     expressions = []
+ 
+     # First element or element under logical operation
+-    if not parent_operator and isinstance(query, dict):
++    if not parent_op and isinstance(query, dict):
+         (key, value) = query.copy().popitem()
+-        return _create_query_expression(value, key)
++        return _create_query_expr(value, key, cypher, var_name)
+ 
+     # Continue recursion on logical (and/or) operation
+-    elif parent_operator in logical_operations and isinstance(query, list):
++    elif parent_op in logical_operations and isinstance(query, list):
+         for val in query:
+-            expressions.append(_create_query_expression(val))
+-        return _join_logical_operator(parent_operator, expressions)
++            expressions.append(_create_query_expr(val, None, cypher, var_name))
++        return _join_logical_operator(parent_op, expressions)
+ 
+     # Recursion evaluate leaf (stop condition)
+-    elif parent_operator in operators:
++    elif parent_op in operators.keys():
+         for key, val in query.items():
+-            expressions.append('item.get(' + _evaluatable_str(key) + ')' +
+-                               parent_operator + ' ' + _evaluatable_str(val))
++            if cypher:
++                expressions.append(_create_cypher_expression(parent_op, key, val, var_name))
++            else:
++                expressions.append(
++                    'item.get(' + _evaluatable_str(key) + ')'
++                    + parent_op + ' ' + _evaluatable_str(val))
+         return _join_logical_operator('and', expressions)
+     else:
+         raise VitrageError('invalid partial query format',
+-                           parent_operator, query)
++                           parent_op, query)
+ 
+ 
+ def _evaluatable_str(value):
+@@ -119,3 +142,16 @@
+     """
+     separator = ' ' + op + ' '
+     return '(' + separator.join(expressions) + ')'
++
++
++def _create_cypher_expression(parent_op, key, val, var_name):
++    if val is None and operators[parent_op] == '=':
++        return 'NOT exists({0}.{1})'.format(var_name, str(key))
++    elif val is None and operators[parent_op] == '<>':
++        return 'exists({0}.{1})'.format(var_name, str(key))
++    elif val is None:
++        raise NotImplementedError("None value with " + operators[parent_op]
++                                  + " is not implemented")
++    return '{0}.{1}{2}{3}'.format(var_name, str(key), operators[parent_op], _evaluatable_str(val))
++    # return 'n.' + str(key) + operators[parent_op] + ' ' \
++    #        + _evaluatable_str(val)
+\ No newline at end of file
+Index: vitrage/graph/neo4j/__init__.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/graph/neo4j/__init__.py	(revision )
++++ vitrage/graph/neo4j/__init__.py	(revision )
+@@ -0,0 +1,14 @@
++# Copyright 2016 - Nokia
++#
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++# http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++__author__ = 'stack'

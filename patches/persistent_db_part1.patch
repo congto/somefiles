@@ -1,0 +1,950 @@
+Index: vitrage/entity_graph/processor/entity_graph.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/entity_graph/processor/entity_graph.py	(date 1480234999000)
++++ vitrage/entity_graph/processor/entity_graph.py	(revision )
+@@ -17,18 +17,18 @@
+ from vitrage.common.constants import EdgeProperties as EProps
+ from vitrage.common.constants import VertexProperties as VProps
+ from vitrage.common.datetime_utils import utcnow
+-from vitrage.graph import NXGraph
++from vitrage.graph import get_graph_class
+ 
+-
+ LOG = log.getLogger(__name__)
+ 
+ 
+-class EntityGraph(NXGraph):
++class EntityGraph(get_graph_class()):
+ 
+     def __init__(self, name, root_id=None):
+         super(EntityGraph, self).__init__(name, root_id)
++        LOG.info("Entity Graph Type: " + self.graph_type)
+ 
+-    def can_vertex_be_deleted(self, vertex):
++    def _can_vertex_be_deleted(self, vertex):
+         """Check if the vertex can be deleted
+ 
+         Vertex can be deleted if it's IS_PLACEHOLDER property is
+@@ -42,21 +42,21 @@
+         neighbor_edges = self.get_edges(vertex.vertex_id)
+ 
+         return not any(True for neighbor_edge in neighbor_edges
+-                       if not self.is_edge_deleted(neighbor_edge))
++                       if not self._is_edge_deleted(neighbor_edge))
+ 
+     def delete_placeholder_vertex(self, suspected_vertex):
+         """Checks if it is a placeholder vertex, and if so deletes it """
+ 
+-        if self.can_vertex_be_deleted(suspected_vertex):
++        if self._can_vertex_be_deleted(suspected_vertex):
+             LOG.debug("Delete placeholder vertex: %s", suspected_vertex)
+             self.remove_vertex(suspected_vertex)
+ 
+     @staticmethod
+-    def is_vertex_deleted(vertex):
++    def _is_vertex_deleted(vertex):
+         return vertex.get(VProps.IS_DELETED, False)
+ 
+     @staticmethod
+-    def is_edge_deleted(edge):
++    def _is_edge_deleted(edge):
+         return edge.get(EProps.IS_DELETED, False)
+ 
+     def mark_vertex_as_deleted(self, vertex):
+@@ -71,12 +71,13 @@
+         edge[EProps.UPDATE_TIMESTAMP] = str(utcnow())
+         self.update_edge(edge)
+ 
+-    def find_neighbor_types(self, neighbors):
++    @staticmethod
++    def find_neighbor_types(neighbors):
+         """Finds all the types (TYPE, SUB_TYPE) of the neighbors """
+ 
+         neighbor_types = set()
+         for (vertex, edge) in neighbors:
+-            neighbor_types.add(self.get_vertex_category(vertex))
++            neighbor_types.add(EntityGraph.get_vertex_category(vertex))
+         return neighbor_types
+ 
+     @staticmethod
+Index: vitrage/entity_graph/__init__.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/entity_graph/__init__.py	(date 1480234999000)
++++ vitrage/entity_graph/__init__.py	(revision )
+@@ -26,4 +26,7 @@
+                default='vitrage.graph',
+                help='The topic that vitrage-graph uses for graph '
+                     'notification messages.'),
++    cfg.StrOpt('graph_driver',
++               default='vitrage.graph.driver.networkx_graph.NXGraph',
++               help='graph driver implementation class'),
+ ]
+Index: vitrage/tests/unit/entity_graph/processor/test_processor.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/tests/unit/entity_graph/processor/test_processor.py	(date 1480234999000)
++++ vitrage/tests/unit/entity_graph/processor/test_processor.py	(revision )
+@@ -127,7 +127,7 @@
+         # check deleted entity
+         self._check_graph(processor, self.NUM_VERTICES_AFTER_DELETION,
+                           self.NUM_EDGES_AFTER_DELETION)
+-        self.assertTrue(processor.entity_graph.is_vertex_deleted(vertex))
++        self.assertTrue(processor.entity_graph._is_vertex_deleted(vertex))
+ 
+     def test_update_relationship(self):
+         # setup
+Index: vitrage/api_handler/apis/rca.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/api_handler/apis/rca.py	(date 1480234999000)
++++ vitrage/api_handler/apis/rca.py	(revision )
+@@ -18,7 +18,6 @@
+ from vitrage.api_handler.apis.base import EDGE_QUERY
+ from vitrage.api_handler.apis.base import EntityGraphApisBase
+ from vitrage.api_handler.apis.base import RCA_QUERY
+-from vitrage.graph import create_algorithm
+ from vitrage.graph import Direction
+ 
+ 
+@@ -37,7 +36,7 @@
+ 
+         project_id = ctx.get(self.TENANT_PROPERTY, None)
+         is_admin_project = ctx.get(self.IS_ADMIN_PROJECT_PROPERTY, False)
+-        ga = create_algorithm(self.entity_graph)
++        ga = self.entity_graph.algo
+ 
+         found_graph_out = ga.graph_query_vertices(query_dict=RCA_QUERY,
+                                                   root_id=root,
+Index: vitrage/graph/driver/networkx_graph.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/graph/driver/networkx_graph.py	(date 1480234999000)
++++ vitrage/graph/driver/networkx_graph.py	(revision )
+@@ -21,6 +21,7 @@
+ from oslo_log import log as logging
+ 
+ from vitrage.common.constants import VertexProperties as VProps
++from vitrage.graph.algo_driver.networkx_algorithm import NXAlgorithm
+ from vitrage.graph.driver.elements import Edge
+ from vitrage.graph.driver.elements import Vertex
+ from vitrage.graph.driver.graph import Direction
+@@ -59,6 +60,10 @@
+     def __len__(self):
+         return len(self._g)
+ 
++    @property
++    def algo(self):
++        return NXAlgorithm(self)
++
+     def copy(self):
+         self_copy = NXGraph(self.name, self.root_id)
+         self_copy._g = self._g.copy()
+@@ -77,13 +82,6 @@
+         properties_copy = copy.copy(v.properties)
+         self._g.add_node(n=v.vertex_id, attr_dict=properties_copy)
+ 
+-    def add_vertices(self, vertices):
+-        if not vertices:
+-            return
+-
+-        for v in vertices:
+-            self.add_vertex(v)
+-
+     @Notifier.update_notify
+     def add_edge(self, e):
+         """Add an edge to the graph
+@@ -98,13 +96,6 @@
+         self._g.add_edge(u=e.source_id, v=e.target_id,
+                          key=e.label, attr_dict=properties_copy)
+ 
+-    def add_edges(self, edges):
+-        if not edges:
+-            return
+-
+-        for e in edges:
+-            self.add_edge(e)
+-
+     def get_vertex(self, v_id):
+         """Fetch a vertex from the graph
+ 
+@@ -131,15 +122,15 @@
+                   attr_filter=None):
+         """Fetch multiple edges from the graph
+ 
+-        :rtype: list of Edge
++        :rtype: set of Edge
+         """
+         def check_edge(edge_data):
+             return check_filter(edge_data, attr_filter)
+ 
+         nodes, edges = self._neighboring_nodes_edges_query(
+             v_id, edge_predicate=check_edge, direction=direction)
+-        edge_copies = [edge_copy(u, v, label, data)
+-                       for u, v, label, data in edges]
++        edge_copies = set(edge_copy(u, v, label, data)
++                          for u, v, label, data in edges)
+         return edge_copies
+ 
+     def _get_edges_by_direction(self, v_id, direction):
+@@ -165,33 +156,22 @@
+         return self._g.number_of_edges()
+ 
+     @Notifier.update_notify
+-    def update_vertex(self, v, hard_update=False):
++    def update_vertex(self, v):
+         """Update the vertex properties
+ 
+-        :param hard_update:
+         :type v: Vertex
+         """
+         orig_prop = self._g.node.get(v.vertex_id, None)
+         if not orig_prop:
+             self._add_vertex(v)
+             return
+-        new_prop = self._merge_properties(orig_prop, v.properties, hard_update)
++        new_prop = self._merge_properties(orig_prop, v.properties)
+         self._g.node[v.vertex_id] = new_prop
+ 
+-    def update_vertices(self, vertices, hard_update=False):
+-        """For each vertex, update its properties
+-
+-        :param hard_update:
+-        :type vertices: List
+-        """
+-        for v in vertices:
+-            self.update_vertex(v, hard_update)
+-
+     @Notifier.update_notify
+-    def update_edge(self, e, hard_update=False):
++    def update_edge(self, e):
+         """Update the edge properties
+ 
+-        :param hard_update:
+         :type e: Edge
+         """
+         orig_prop = self._g.edge.get(
+@@ -201,16 +181,8 @@
+         if not orig_prop:
+             self._add_edge(e)
+             return
+-        new_prop = self._merge_properties(orig_prop, e.properties, hard_update)
++        new_prop = self._merge_properties(orig_prop, e.properties)
+         self._g.edge[e.source_id][e.target_id][e.label] = new_prop
+-
+-    @staticmethod
+-    def _merge_properties(base_props, new_props, hard_update):
+-        if base_props is None or hard_update:
+-            base_props = copy.copy(new_props)
+-        else:
+-            base_props.update(copy.copy(new_props))
+-        return {k: v for k, v in base_props.items() if v is not None}
+ 
+     def remove_vertex(self, v):
+         """Remove Vertex v and its edges from the graph
+Index: vitrage/graph/algo_driver/__init__.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/graph/algo_driver/__init__.py	(date 1480234999000)
++++ vitrage/graph/algo_driver/__init__.py	(revision )
+@@ -11,18 +11,4 @@
+ # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ # License for the specific language governing permissions and limitations
+ # under the License.
+-
+-from vitrage.graph.algo_driver.algorithm import *  # noqa
+-from vitrage.graph.algo_driver.networkx_algorithm import NXAlgorithm
+-
+-
+-def create_algorithm(graph):
+-    """Create a Graph algorithm instance
+-
+-    For now only return NXAlgorithm
+-
+-    :param graph:
+-    :type graph: Graph
+-    :rtype: GraphAlgorithm
+-    """
+-    return NXAlgorithm(graph=graph)
++__author__ = 'stack'
+\ No newline at end of file
+Index: vitrage/evaluator/scenario_evaluator.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/evaluator/scenario_evaluator.py	(date 1480234999000)
++++ vitrage/evaluator/scenario_evaluator.py	(revision )
+@@ -28,7 +28,6 @@
+ from vitrage.evaluator.template_data import EdgeDescription
+ from vitrage.evaluator.template_data import ENTITY
+ from vitrage.graph.algo_driver.algorithm import Mapping
+-from vitrage.graph import create_algorithm
+ from vitrage.graph import create_graph
+ from vitrage.graph.driver import Vertex
+ 
+@@ -55,7 +54,6 @@
+         self.conf = conf
+         self._scenario_repo = scenario_repo
+         self._entity_graph = entity_graph
+-        self._graph_algs = create_algorithm(entity_graph)
+         self._action_executor = ActionExecutor(event_queue)
+         self._entity_graph.subscribe(self.process_event)
+         self._action_tracker = ActionTracker(DatasourceInfoMapper(self.conf))
+@@ -204,7 +202,7 @@
+ 
+     def _evaluate_and_condition(self, condition, element, scenario_element):
+ 
+-        condition_g = create_graph("scenario condition")
++        condition_g = create_graph("scenario condition", gtype='networkx')
+         for term in condition:
+             if not term.positive:
+                 # todo(erosensw): add support for NOT clauses
+@@ -224,7 +222,8 @@
+             initial_map = Mapping(scenario_element, element, True)
+         else:
+             initial_map = Mapping(scenario_element.edge, element, False)
+-        return self._graph_algs.sub_graph_matching(condition_g, [initial_map])
++        return self._entity_graph.algo.sub_graph_matching(condition_g,
++                                                          [initial_map])
+ 
+     @staticmethod
+     def _set_relationship_not_deleted(edge_description):
+Index: vitrage/graph/algo_driver/networkx_algorithm.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/graph/algo_driver/networkx_algorithm.py	(date 1480234999000)
++++ vitrage/graph/algo_driver/networkx_algorithm.py	(revision )
+@@ -21,7 +21,6 @@
+ from vitrage.graph.algo_driver.sub_graph_matching import subgraph_matching
+ from vitrage.graph.driver import Direction
+ from vitrage.graph.driver import Edge
+-from vitrage.graph.driver import NXGraph
+ from vitrage.graph.driver import Vertex
+ from vitrage.graph.filter import check_filter
+ from vitrage.graph.query import create_predicate
+@@ -46,7 +45,7 @@
+                              direction=Direction.BOTH,
+                              edge_query_dict=None):
+ 
+-        graph = NXGraph('graph')
++        graph = self.graph.create_new('graph')
+ 
+         if not root_id:
+             root_id = self.graph.root_id
+@@ -80,7 +79,7 @@
+             e_result.extend(e_list)
+             nodes_q.extend([(v_id, curr_depth + 1) for v_id, data in n_list])
+ 
+-        graph = NXGraph(graph.name,
++        graph = self.graph.create_new(graph.name,
+                         graph.root_id,
+                         vertices=self._vertex_result_to_list(n_result),
+                         edges=self._edge_result_to_list(e_result))
+@@ -125,7 +124,7 @@
+ 
+         vertices_ids = [vertex.vertex_id for vertex in vertices]
+ 
+-        graph = NXGraph('graph')
++        graph = self.graph.create_new('graph')
+         graph._g = self.graph._g.subgraph(vertices_ids)
+ 
+         # delete non matching edges
+@@ -143,7 +142,7 @@
+         return graph
+ 
+     def subgraph(self, entities):
+-        subgraph = NXGraph('graph')
++        subgraph = self.graph.create_new('graph')
+         subgraph._g = self.graph._g.subgraph(entities)
+         return subgraph
+ 
+Index: vitrage/graph/driver/notifier.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/graph/driver/notifier.py	(date 1480234999000)
++++ vitrage/graph/driver/notifier.py	(revision )
+@@ -27,8 +27,8 @@
+     if not graph.is_subscribed():
+         return
+     element = graph.get_item(item)
+-    is_vertex = isinstance(element, Vertex)
+-    graph.notifier.notify(data_before, graph.get_item(item), is_vertex, graph)
++    is_vertex = isinstance(element, Vertex) or isinstance(item, Vertex)
++    graph.notifier.notify(data_before, element, is_vertex, graph)
+ 
+ 
+ class Notifier(object):
+Index: vitrage/tests/functional/api_handler/test_apis.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/tests/functional/api_handler/test_apis.py	(date 1480234999000)
++++ vitrage/tests/functional/api_handler/test_apis.py	(revision )
+@@ -23,7 +23,7 @@
+ from vitrage.datasources import NOVA_INSTANCE_DATASOURCE
+ from vitrage.datasources import NOVA_ZONE_DATASOURCE
+ from vitrage.datasources import OPENSTACK_CLUSTER
+-from vitrage.graph import NXGraph
++from vitrage.graph.driver.networkx_graph import NXGraph
+ import vitrage.graph.utils as graph_utils
+ from vitrage.tests.unit.entity_graph.base import TestEntityGraphUnitBase
+ 
+Index: vitrage/graph/driver/__init__.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/graph/driver/__init__.py	(date 1480234999000)
++++ vitrage/graph/driver/__init__.py	(revision )
+@@ -12,18 +12,36 @@
+ # License for the specific language governing permissions and limitations
+ # under the License.
+ 
++from oslo_utils import importutils as utils
++
+ from vitrage.graph.driver.elements import *  # noqa
+ from vitrage.graph.driver.graph import *  # noqa
+ from vitrage.graph.driver.networkx_graph import NXGraph
+ 
++from oslo_log import log
+ 
+-def create_graph(name, root_id=None):
++LOG = log.getLogger(__name__)
++
++
++def create_graph(name, root_id=None, gtype=None):
+     """Create a Graph instance
+ 
+     For now only return NXGraph
+ 
+     :param root_id:
+     :type name: str
++    :param gtype: 'networkx'
++    :type gtype: str
+     :rtype: Graph
+     """
+-    return NXGraph(name, root_id)
++    graph_class = get_graph_class(gtype)
++    return graph_class(name, root_id)
++
++
++def get_graph_class(gtype=None):
++    if gtype == 'networkx':
++        return NXGraph
++
++    conf_type = 'vitrage.graph.driver.networkx_graph.NXGraph'
++    type_ = gtype if gtype else conf_type
++    return utils.import_class(type_)
+Index: vitrage/tests/unit/graph/test_graph_algo.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/tests/unit/graph/test_graph_algo.py	(date 1480234999000)
++++ vitrage/tests/unit/graph/test_graph_algo.py	(revision )
+@@ -23,15 +23,32 @@
+ from vitrage.common.constants import EdgeLabel
+ from vitrage.common.constants import EdgeProperties as EProps
+ from vitrage.common.constants import VertexProperties as VProps
++from vitrage.graph.algo_driver.algorithm import Mapping
+ from vitrage.graph.driver.elements import Edge
+-from vitrage.graph import create_algorithm, Mapping, Direction  # noqa
++from vitrage.graph.driver.graph import Direction
+ from vitrage.tests.unit.graph.base import *  # noqa
+ 
+ 
+ class GraphAlgorithmTest(GraphTestBase):
+ 
++    # noinspection PyPep8Naming
++    @classmethod
++    def setUpClass(cls):
++        cls.vm_id = 10000000
++        cls.vm_alarm_id = 30000000
++        cls.vms = []
++        cls.host_alarm_id = 20000000
++        cls.host_test_id = 40000000
++        cls.entity_graph = cls._create_entity_graph(
++            'entity_graph',
++            num_of_hosts_per_node=ENTITY_GRAPH_HOSTS_PER_CLUSTER,
++            num_of_vms_per_host=ENTITY_GRAPH_VMS_PER_HOST,
++            num_of_alarms_per_host=ENTITY_GRAPH_ALARMS_PER_HOST,
++            num_of_alarms_per_vm=ENTITY_GRAPH_ALARMS_PER_VM,
++            num_of_tests_per_host=ENTITY_GRAPH_TESTS_PER_HOST)
++
+     def test_graph_query_vertices(self):
+-        ga = create_algorithm(self.entity_graph)
++        ga = self.entity_graph.algo
+ 
+         query = {'==': {VProps.TYPE: OPENSTACK_CLUSTER}}
+         subgraph = ga.graph_query_vertices(query)
+@@ -186,11 +203,14 @@
+                          'We filtered the ON relationship, so no alarms '
+                          'should exist')
+ 
+-    def test_no_match_graph_query_vertices(self):
+-        ga = create_algorithm(self.entity_graph)
++        # Undo changes made by this test
++        host_instance_edge[VProps.IS_DELETED] = False
++        self.entity_graph.update_edge(host_instance_edge)
++        self.entity_graph.remove_edge(new_edge)
+ 
++    def test_no_match_graph_query_vertices(self):
+         query = {'==': {VProps.TYPE: 'test'}}
+-        subgraph = ga.graph_query_vertices(query)
++        subgraph = self.entity_graph.algo.graph_query_vertices(query)
+         self.assertEqual(
+             0,
+             subgraph.num_vertices(), 'num of vertex node')
+@@ -201,7 +221,7 @@
+         Using the entity graph (created above) as a big graph we search
+         for a sub graph match
+         """
+-        ga = create_algorithm(self.entity_graph)
++        ga = self.entity_graph.algo
+ 
+         # Get ids of some of the elements in the entity graph:
+         vm_alarm = self.entity_graph.get_vertex(
+@@ -210,7 +230,7 @@
+             ALARM_ON_HOST + str(self.host_alarm_id - 1))
+ 
+         # Create a template for template matching
+-        t = create_graph('template_graph')
++        t = create_graph('template_graph', gtype='networkx')
+         t_v_host_alarm = graph_utils.create_vertex(
+             vitrage_id='1', entity_category=ALARM, entity_type=ALARM_ON_HOST)
+         t_v_alarm_fail = graph_utils.create_vertex(
+Index: vitrage/common/utils.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/common/utils.py	(date 1480234999000)
++++ vitrage/common/utils.py	(revision )
+@@ -20,7 +20,9 @@
+ from oslo_config import cfg
+ import six
+ 
++import cProfile
+ 
++
+ def recursive_keypairs(d, separator='.'):
+     # taken from ceilometer and gnocchi
+     for name, value in sorted(six.iteritems(d)):
+@@ -36,3 +38,16 @@
+         return conf_parent[opt]
+     except cfg.NoSuchOptError:
+         return False
++
++
++def do_cprofile(func):
++    def profiled_func(*args, **kwargs):
++        profile = cProfile.Profile()
++        try:
++            profile.enable()
++            result = func(*args, **kwargs)
++            profile.disable()
++            return result
++        finally:
++            profile.print_stats('cumulative')
++    return profiled_func
+Index: vitrage/datasources/launcher.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/datasources/launcher.py	(date 1480234999000)
++++ vitrage/datasources/launcher.py	(revision )
+@@ -42,7 +42,8 @@
+         self.services = self._register_services()
+ 
+     def launch(self):
+-        launcher = os_service.ProcessLauncher(self.conf)
++        launcher = os_service.ServiceLauncher(self.conf)  # For Debugging
++        #launcher = os_service.ProcessLauncher(self.conf)
+         for service in self.services:
+             launcher.launch_service(service, 1)
+ 
+Index: vitrage/tests/unit/graph/base.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/tests/unit/graph/base.py	(date 1480234999000)
++++ vitrage/tests/unit/graph/base.py	(revision )
+@@ -26,6 +26,7 @@
+ 
+ from vitrage.common.constants import EdgeLabel as ELabel
+ from vitrage.common.constants import EntityCategory
++from vitrage.common.exception import VitrageError
+ from vitrage.datasources.nova.host import NOVA_HOST_DATASOURCE
+ from vitrage.datasources.nova.instance import NOVA_INSTANCE_DATASOURCE
+ from vitrage.datasources import OPENSTACK_CLUSTER
+@@ -116,24 +117,12 @@
+     def __init__(self, *args, **kwds):
+         super(GraphTestBase, self).__init__(*args, **kwds)
+ 
+-        self.vm_id = 10000000
+-        self.vm_alarm_id = 30000000
+-        self.vms = []
+-        self.host_alarm_id = 20000000
+-        self.host_test_id = 40000000
+-        self.entity_graph = self._create_entity_graph(
+-            'entity_graph',
+-            num_of_hosts_per_node=ENTITY_GRAPH_HOSTS_PER_CLUSTER,
+-            num_of_vms_per_host=ENTITY_GRAPH_VMS_PER_HOST,
+-            num_of_alarms_per_host=ENTITY_GRAPH_ALARMS_PER_HOST,
+-            num_of_alarms_per_vm=ENTITY_GRAPH_ALARMS_PER_VM,
+-            num_of_tests_per_host=ENTITY_GRAPH_TESTS_PER_HOST)
+-
+     def _assert_set_equal(self, d1, d2, message):
+         super(GraphTestBase, self).assert_dict_equal(
+             dict.fromkeys(d1, 0), dict.fromkeys(d2, 0), message)
+ 
+-    def _create_entity_graph(self, name, num_of_alarms_per_host,
++    @classmethod
++    def _create_entity_graph(cls, name, num_of_alarms_per_host,
+                              num_of_alarms_per_vm,
+                              num_of_hosts_per_node,
+                              num_of_vms_per_host,
+@@ -162,34 +151,34 @@
+             # Add Host Alarms
+             for j in range(num_of_alarms_per_host):
+                 add_connected_vertex(g, ALARM, ALARM_ON_HOST,
+-                                     self.host_alarm_id, ELabel.ON,
++                                     cls.host_alarm_id, ELabel.ON,
+                                      host_to_add)
+-                self.host_alarm_id += 1
++                cls.host_alarm_id += 1
+ 
+             # Add Host Tests
+             for j in range(num_of_tests_per_host):
+-                add_connected_vertex(g, TEST, TEST_ON_HOST, self.host_test_id,
++                add_connected_vertex(g, TEST, TEST_ON_HOST, cls.host_test_id,
+                                      ELabel.ON, host_to_add)
+-                self.host_test_id += 1
++                cls.host_test_id += 1
+ 
+             # Add Host Vms
+             for j in range(num_of_vms_per_host):
+                 vm_to_add = add_connected_vertex(g,
+                                                  RESOURCE,
+                                                  NOVA_INSTANCE_DATASOURCE,
+-                                                 self.vm_id,
++                                                 cls.vm_id,
+                                                  ELabel.CONTAINS,
+                                                  host_to_add,
+                                                  True)
+-                self.vm_id += 1
+-                self.vms.append(vm_to_add)
++                cls.vm_id += 1
++                cls.vms.append(vm_to_add)
+ 
+                 # Add Instance Alarms
+                 for k in range(num_of_alarms_per_vm):
+                     add_connected_vertex(g, ALARM, ALARM_ON_VM,
+-                                         self.vm_alarm_id, ELabel.ON,
++                                         cls.vm_alarm_id, ELabel.ON,
+                                          vm_to_add)
+-                    self.vm_alarm_id += 1
++                    cls.vm_alarm_id += 1
+ 
+         end = time.time()
+         LOG.debug('Graph creation took ' + str(end - start) +
+@@ -200,5 +189,10 @@
+             num_of_vms_per_host + num_of_hosts_per_node * \
+             num_of_vms_per_host * num_of_alarms_per_vm + \
+             num_of_tests_per_host * num_of_hosts_per_node
+-        assert expected_graph_size == len(g), 'Graph size'
++        if not expected_graph_size == len(g):
++            raise VitrageError('Init failed, graph size unexpected {0} != {1}'
++                               .format(expected_graph_size, len(g)))
++        # cls.assertEqual(
++        #     expected_graph_size,
++        #     len(g), 'num of vertex node')
+         return g
+Index: vitrage/api_handler/apis/topology.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/api_handler/apis/topology.py	(date 1480234999000)
++++ vitrage/api_handler/apis/topology.py	(revision )
+@@ -23,7 +23,6 @@
+ from vitrage.datasources.nova.instance import NOVA_INSTANCE_DATASOURCE
+ from vitrage.datasources import OPENSTACK_CLUSTER
+ from vitrage.datasources.transformer_base import build_key
+-from vitrage.graph import create_algorithm
+ 
+ 
+ LOG = log.getLogger(__name__)
+@@ -41,7 +40,7 @@
+ 
+         project_id = ctx.get(self.TENANT_PROPERTY, None)
+         is_admin_project = ctx.get(self.IS_ADMIN_PROJECT_PROPERTY, False)
+-        ga = create_algorithm(self.entity_graph)
++        ga = self.entity_graph.algo
+ 
+         if graph_type == 'tree':
+             if not query:
+Index: vitrage/service.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/service.py	(date 1480234999000)
++++ vitrage/service.py	(revision )
+@@ -48,3 +48,6 @@
+     messaging.setup()
+ 
+     return conf
++
++
++# g_conf = prepare_service()
+Index: vitrage/tests/unit/entity_graph/processor/test_entity_graph.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/tests/unit/entity_graph/processor/test_entity_graph.py	(date 1480234999000)
++++ vitrage/tests/unit/entity_graph/processor/test_entity_graph.py	(revision )
+@@ -33,7 +33,7 @@
+ 
+         # check is placeholder vertex
+         is_placeholder_vertex = \
+-            entity_graph.can_vertex_be_deleted(instance_vertex)
++            entity_graph._can_vertex_be_deleted(instance_vertex)
+         self.assertTrue(is_placeholder_vertex)
+ 
+         # add host vertex
+@@ -46,7 +46,7 @@
+ 
+         # check is placeholder vertex
+         is_placeholder_vertex = \
+-            entity_graph.can_vertex_be_deleted(instance_vertex)
++            entity_graph._can_vertex_be_deleted(instance_vertex)
+         self.assertFalse(is_placeholder_vertex)
+ 
+         # change host to is_deleted
+@@ -55,7 +55,7 @@
+ 
+         # check is placeholder vertex
+         is_placeholder_vertex = \
+-            entity_graph.can_vertex_be_deleted(instance_vertex)
++            entity_graph._can_vertex_be_deleted(instance_vertex)
+         self.assertTrue(is_placeholder_vertex)
+ 
+     def test_is_not_can_vertex_be_deleted(self):
+@@ -68,7 +68,7 @@
+                                               False, False, prop)
+ 
+         # check is not placeholder vertex
+-        is_placeholder_vertex = entity_graph.can_vertex_be_deleted(vertex)
++        is_placeholder_vertex = entity_graph._can_vertex_be_deleted(vertex)
+         self.assertFalse(is_placeholder_vertex)
+ 
+     def test_delete_placeholder_vertex(self):
+@@ -80,7 +80,7 @@
+                                               False, True, {})
+ 
+         # check is placeholder vertex
+-        is_placeholder_vertex = entity_graph.can_vertex_be_deleted(vertex)
++        is_placeholder_vertex = entity_graph._can_vertex_be_deleted(vertex)
+         self.assertTrue(is_placeholder_vertex)
+ 
+         # deal with placeholder vertex - mark it as deleted
+@@ -97,9 +97,9 @@
+                                               False, True, {})
+ 
+         # check vitrage deleted
+-        self.assertFalse(entity_graph.is_vertex_deleted(vertex))
++        self.assertFalse(entity_graph._is_vertex_deleted(vertex))
+         entity_graph.mark_vertex_as_deleted(vertex)
+-        self.assertTrue(entity_graph.is_vertex_deleted(vertex))
++        self.assertTrue(entity_graph._is_vertex_deleted(vertex))
+ 
+     def test_mark_edge_as_deleted(self):
+         entity_graph = entity_g.EntityGraph("Entity Graph")
+@@ -115,9 +115,9 @@
+                                           vertex2.vertex_id, 'contains')
+ 
+         # check vitrage deleted
+-        self.assertFalse(entity_graph.is_edge_deleted(edge))
++        self.assertFalse(entity_graph._is_edge_deleted(edge))
+         entity_graph.mark_edge_as_deleted(edge)
+-        self.assertTrue(entity_graph.is_edge_deleted(edge))
++        self.assertTrue(entity_graph._is_edge_deleted(edge))
+ 
+     def test_find_neighbor_types(self):
+         neighbors = []
+Index: vitrage/graph/driver/graph.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- vitrage/graph/driver/graph.py	(date 1480234999000)
++++ vitrage/graph/driver/graph.py	(revision )
+@@ -20,6 +20,7 @@
+ 
+ """
+ import abc
++import copy
+ import six
+ 
+ from vitrage.graph.driver.elements import Edge
+@@ -48,6 +49,7 @@
+         self.graph_type = graph_type
+         self.root_id = None
+         self.notifier = Notifier()
++        # self.graph_class = self.__class__
+ 
+     def subscribe(self, function):
+         self.notifier.subscribe(function)
+@@ -61,6 +63,18 @@
+         if isinstance(item, Vertex):
+             return self.get_vertex(item.vertex_id)
+ 
++    @classmethod
++    def create_new(cls, *args, **kwargs):
++        return cls(args, **kwargs)
++
++    @property
++    def algo(self):
++        """Get graph algorithms
++
++        :rtype: GraphAlgorithm
++        """
++        return None
++
+     @abc.abstractmethod
+     def copy(self):
+         """Create a copy of the graph
+@@ -105,7 +119,6 @@
+         """
+         pass
+ 
+-    @abc.abstractmethod
+     def add_vertices(self, vertices):
+         """Add a list of vertices to the graph
+ 
+@@ -114,8 +127,12 @@
+         :param vertices:
+         :type vertices:list of Vertex
+         """
+-        pass
++        if not vertices:
++            return
+ 
++        for v in vertices:
++            self.add_vertex(v)
++
+     @abc.abstractmethod
+     def add_edge(self, e):
+         """Add an edge to the graph
+@@ -143,7 +160,6 @@
+         """
+         pass
+ 
+-    @abc.abstractmethod
+     def add_edges(self, edges):
+         """Add a list of edges to the graph
+ 
+@@ -152,8 +168,12 @@
+         :param edges:
+         :type edges:list of Edge
+         """
+-        pass
++        if not edges:
++            return
+ 
++        for e in edges:
++            self.add_edge(e)
++
+     @abc.abstractmethod
+     def get_vertex(self, v_id):
+         """Fetch a vertex from the graph
+@@ -213,52 +233,51 @@
+         :type attr_filter: dict
+ 
+         :return: All edges matching the requirements
+-        :rtype: list of Edge
++        :rtype: set of Edge
+         """
+         pass
+ 
+     @abc.abstractmethod
+-    def update_vertex(self, v, hard_update=False):
++    def update_vertex(self, v):
+         """Update the vertex properties
+ 
+         Update an existing vertex and create it if non existing.
+-        Hard update: can be used to remove existing fields.
+ 
+         :param v: the vertex with the new data
+         :type v: Vertex
+-        :param hard_update: if True, original properties will be removed.
+-        :type hard_update: bool
+         """
+         pass
+ 
+-    @abc.abstractmethod
+-    def update_vertices(self, vertices, hard_update=False):
++    def update_vertices(self, vertices):
+         """For each vertex, update its properties
+ 
+         For each existing vertex, update its properties and create it if
+         non existing.
+-        Hard update: can be used to remove existing fields.
+ 
+         :param vertices: the vertex with the new data
+         :type vertices: List
+-        :param hard_update: if True, original properties will be removed.
+-        :type hard_update: bool
+         """
+-        pass
++        for v in vertices:
++            self.update_vertex(v)
+ 
+     @abc.abstractmethod
+-    def update_edge(self, e, hard_update=False):
++    def update_edge(self, e):
+         """Update the edge properties
+ 
+         Update an existing edge and create it if non existing.
+-        Hard update: can be used to remove existing fields.
+ 
+         :param e: the edge with the new data
+         :type e: Edge
+-        :param hard_update: if True, original properties will be removed.
+-        :type hard_update: bool
+         """
+         pass
++
++    @staticmethod
++    def _merge_properties(base_props, new_props):
++        if base_props is None:
++            base_props = copy.copy(new_props)
++        else:
++            base_props.update(copy.copy(new_props))
++        return {k: v for k, v in base_props.items() if v is not None}
+ 
+     @abc.abstractmethod
+     def remove_vertex(self, v):
