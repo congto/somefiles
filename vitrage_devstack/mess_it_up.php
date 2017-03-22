@@ -1,35 +1,35 @@
 <?php
     if (isset($_POST['c']))
     {
-         exec('/home/stack/templates/problem.sh c');
+         exec('/home/stack/problem.sh c');
     }
     if (isset($_POST['cu']))
     {
-         exec('/home/stack/templates/problem.sh cu');
+         exec('/home/stack/problem.sh cu');
     }
     if (isset($_POST['m']))
     {
-         exec('/home/stack/templates/problem.sh m');
+         exec('/home/stack/problem.sh m');
     }
     if (isset($_POST['mu']))
     {
-         exec('/home/stack/templates/problem.sh mu');
+         exec('/home/stack/problem.sh mu');
     }
     if (isset($_POST['i']))
     {
-         exec('/home/stack/templates/problem.sh i');
+         exec('/home/stack/problem.sh i');
     }
     if (isset($_POST['iu']))
     {
-         exec('/home/stack/templates/problem.sh iu');
+         exec('/home/stack/problem.sh iu');
     }
     if (isset($_POST['s']))
     {
-         exec('/home/stack/templates/problem.sh s');
+         exec('/home/stack/problem.sh s');
     }
     if (isset($_POST['su']))
     {
-         exec('/home/stack/templates/problem.sh su');
+         exec('/home/stack/problem.sh su');
     }
 ?>
 <html>
