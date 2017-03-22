@@ -1,19 +1,4 @@
 #!/bin/sh
-
-#Update zabbix item system.cpu.load[percpu,avg1] to every 10 seconds instead of 60
-#Duplicate trigger Processor load is too high on {HOST.NAME} and change expression to "{compute-0-0:system.cpu.load[percpu,avg1].avg(1m)}>4"
-#Disable the original trigger
-
-#copy and make https://github.com/julman99/eatmemory
-#Update vm.memory.size[available] to every 10 seconds instead of 60
-#Duplicate trigger  Lack of available memory on server {HOST.NAME} and change expression to "{compute-0-0:vm.memory.size[available].last(0)}<250M"
-#Disable the original trigger
-
-echo "usage: ./problem.sh <option>"
-echo "c - Raise CPU levels            Compute-0-0      <cu undo>"
-echo "m - Raise Memory levels         Compute-0-0      <mu undo>"
-echo "i - ifdown public interface     Compute-0-0      <iu undo>"
-#!/bin/sh
 #read -r OPTION
 case $1 in
 
@@ -57,4 +42,3 @@ su) echo  "Undo switch-0 public port failure"
     echo "s - Switch public port failure  Switch-0         <su undo>"
     ;;
 esac
-
