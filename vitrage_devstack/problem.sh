@@ -13,7 +13,7 @@ echo "usage: ./problem.sh <option>"
 echo "c - Raise CPU levels            Compute-0-0      <cu undo>"
 echo "m - Raise Memory levels         Compute-0-0      <mu undo>"
 echo "i - ifdown public interface     Compute-0-0      <iu undo>"
-echo "s - Switch public port failure  Switch-0         <su undo>"
+#!/bin/sh
 #read -r OPTION
 case $1 in
 
@@ -32,7 +32,7 @@ cu)  echo "Undo raise CPU levels on Compute-0-0"
     ;;
 m)  echo  "Raise Memory levels on Compute-0-0"
     pkill eatmemory
-    eatmemory 300M &
+    /bin/eatmemory 300M &
     ;;
 mu) echo  "Undo raise Memory levels on Compute-0-0"
     pkill eatmemory
@@ -50,5 +50,11 @@ su) echo  "Undo switch-0 public port failure"
     rm /tmp/switch-port
     ;;
 *)  echo "UNKOWN!!"
+    echo "What would you like to do?"
+    echo "c - Raise CPU levels            Compute-0-0      <cu undo>"
+    echo "m - Raise Memory levels         Compute-0-0      <mu undo>"
+    echo "i - ifdown public interface     Compute-0-0      <iu undo>"
+    echo "s - Switch public port failure  Switch-0         <su undo>"
     ;;
 esac
+
