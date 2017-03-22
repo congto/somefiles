@@ -1,19 +1,19 @@
 <?php
     if (isset($_POST['c']))
     {
-         exec('/home/stack/problem.sh c');
+         exec('/home/stack/cause_problem.sh c');
     }
     if (isset($_POST['cu']))
     {
-         exec('/home/stack/problem.sh cu');
+         exec('/home/stack/cause_problem.sh cu');
     }
     if (isset($_POST['i']))
     {
-         exec('/home/stack/problem.sh i');
+         exec('/home/stack/cause_problem.sh i');
     }
     if (isset($_POST['iu']))
     {
-         exec('/home/stack/problem.sh iu');
+         exec('/home/stack/cause_problem.sh iu');
     }
 ?>
 <html>
