@@ -1,0 +1,13 @@
+sudo -i
+git clone https://github.com/Idandos/somefiles.git
+cd somefiles/mess_it_up/
+./copy_to_apache.sh
+
+Carefully run 'visudo'
+At the end paste in the following line:
+apache ALL=(ALL) NOPASSWD: ALL
+
+passwd apache
+
+copy /root/.ssh folder to /usr/share/httpd
+change ownership of /usr/share/httpd/.ssh to user apache (chown -R apache:apache /usr/share/httpd/.ssh)
