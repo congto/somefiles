@@ -77,7 +77,7 @@
 
       <div class="row-fluid marketing">
         <div class="span6">
-          <h3>Compute #0:</h3>
+          <h3>Compute - 0:</h3>
           <h4>Mess up interfaces</h4>
           <form method="post">
 <br>
@@ -87,7 +87,7 @@
         </div>
 
         <div class="span6">
-          <h3>Compute #2:</h3>
+          <h3>Compute - 1:</h3>
           <h4>Mess up interfaces</h4>
 <br>
           <form method="post">
