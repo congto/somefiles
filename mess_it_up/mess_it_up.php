@@ -55,8 +55,6 @@
 
   <body>
 
-    <img src="https://www.popsci.com/g00/3_c-5eee.x78wx78akq.kwu_/c-5UWZMXPMCA09x24pbbx78ax3ax2fx2feee.x78wx78akq.kwux2faqbmax2fx78wx78akq.kwux2fnqtmax2fabgtmax2f433_9f_x2fx78cjtqkx2fquiomax2f0895x2f87x2flibi-nqtm-zmx78iqz.rx78ox3fqbwsx3dWtkQx78hWGx26nkx3d38x2c38x26q98k.uizs.quiom.bgx78m_$/$/$/$/$/$/$/$/$/$/$"
-         style="position: absolute; margin: 0px; padding: 0px; border: none; width: 1903px; height: 1268px; max-width: none; z-index: -999999; left: 0px; top: -293.5px;">
     <div align="center" class="container-narrow">
       <div align="left" class="masthead">
         <ul class="nav nav-pills pull-right">

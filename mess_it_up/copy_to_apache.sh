@@ -1,5 +1,8 @@
 #!/bin/sh
 
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+mkdir /idan
+cp -r $SCRIPT_DIR/* /idan/
 rm -rf /usr/share/openstack-dashboard/static/app/css
 rm -rf /usr/share/openstack-dashboard/static/app/js
 rm -rf /usr/share/openstack-dashboard/static/app/mess_it_up.php
