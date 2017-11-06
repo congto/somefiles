@@ -5,13 +5,13 @@ sudo dpkg -i zabbix-release_3.2-1+xenial_all.deb && sudo apt-get update
 sudo apt install zabbix-server-mysql zabbix-frontend-php -y
 sudo apt install php-mbstring php-bcmath php-xmlwriter -y
 sudo apt install zabbix-agent -y
-mysql -uroot -e "CREATE DATABASE zabbix CHARACTER SET utf8 COLLATE utf8_bin";
-mysql -uroot -e "CREATE USER 'zabbix'@'localhost'";
-mysql -uroot -e "GRANT ALL ON zabbix.* TO 'zabbix'@'localhost'";
+sudo mysql -uroot -e "CREATE DATABASE zabbix CHARACTER SET utf8 COLLATE utf8_bin";
+sudo mysql -uroot -e "CREATE USER 'zabbix'@'localhost'";
+sudo mysql -uroot -e "GRANT ALL ON zabbix.* TO 'zabbix'@'localhost'";
 
-mysql -uroot -e "SHOW DATABASES";
-mysql -uroot -e "SELECT host, user FROM mysql.user";
-mysql -uroot -e "SHOW GRANTS FOR 'zabbix'@'localhost'";
+sudo mysql -uroot -e "SHOW DATABASES";
+sudo mysql -uroot -e "SELECT host, user FROM mysql.user";
+sudo mysql -uroot -e "SHOW GRANTS FOR 'zabbix'@'localhost'";
 zcat /usr/share/doc/zabbix-server-mysql/create.sql.gz | mysql -uroot zabbix
 sudo sed -i 's/# php_value date.timezone Europe\/Riga/php_value date.timezone Europe\/Minsk/g' /etc/apache2/conf-enabled/zabbix.conf
 
