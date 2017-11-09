@@ -1,11 +1,12 @@
-#!/usr/bin/env bash
+
 cd ~
 rm -rf devstack/
 git clone https://github.com/openstack-dev/devstack.git
 cd devstack/
 wget https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/queens/local.conf
 sudo hostname compute-0-0
-./stack.sh
+nohup ./stack.sh &
+tail -f nohup
 
 cd ~
 wget -O /etc/vitrage/zabbix_conf.yaml https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/zabbix_conf.yaml
