@@ -1,4 +1,4 @@
-sudo apt-get install chromium-browser 
+#sudo apt-get install chromium-browser 
 
 wget http://repo.zabbix.com/zabbix/3.2/ubuntu/pool/main/z/zabbix-release/zabbix-release_3.2-1+xenial_all.deb
 sudo dpkg -i zabbix-release_3.2-1+xenial_all.deb && sudo apt-get update
