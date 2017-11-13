@@ -38,7 +38,7 @@ sed -i.bak 's/stacks:global_index": "rule:deny_everybody/stacks:global_index": "
 wget https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/install_zabbix_on_devstack.sh
 chmod +x install_zabbix_on_devstack.sh
 sudo ./install_zabbix_on_devstack.sh
-wget -O /etc/vitrage/zabbix_conf.yaml https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/zabbix_conf.yaml
+sudo service apache2 restart
 * Now go to http://<IP>/zabbix and press next as needed
 * Login with Admin/zabbix
 * Configuration->Templates->Import Template -> use the zbx_template.xml
@@ -47,6 +47,7 @@ wget -O /etc/vitrage/zabbix_conf.yaml https://raw.githubusercontent.com/Idandos/
       * Add the mock-vitrage template
       
 == Restart ==
+wget -O /etc/vitrage/zabbix_conf.yaml https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/zabbix_conf.yaml
 sudo service devstack@vitrage-graph restart
-sudo service apache2 restart
+
 
