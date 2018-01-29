@@ -50,4 +50,14 @@ sudo service apache2 restart
 wget -O /etc/vitrage/zabbix_conf.yaml https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/zabbix_conf.yaml
 sudo service devstack@vitrage-graph restart
 
+== Git Config ==
+Manually config git according to git-setup.sh (in Idandos/somefiles/vitrage_devstack/)
 
+== Install Pycharm ==
+wget https://download.jetbrains.com/python/pycharm-community-2017.3.3.tar.gz
+sudo chown stack:stack /opt
+tar xfz pycharm-community-*.tar.gz -C /opt/
+echo "alias pycharm='/opt/pycharm-community-2017.3.3/bin/pycharm.sh'" >> /home/stack/.bashrc
+sudo apt-get update
+sudo apt-get install default-jre
+pycharm
