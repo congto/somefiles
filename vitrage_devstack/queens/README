@@ -61,3 +61,4 @@ echo "alias pycharm='nohup /opt/pycharm-community-2017.3.3/bin/pycharm.sh &'" >>
 sudo apt-get update
 sudo apt-get install default-jre
 pycharm
+(if resolution seems too big (settings->appearance->appearance->font to 14) and (setting->editor->font-> 14))
