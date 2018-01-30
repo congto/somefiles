@@ -62,3 +62,7 @@ sudo apt-get update
 sudo apt-get install default-jre
 pycharm
 (if resolution seems too big (settings->appearance->appearance->font to 14) and (setting->editor->font-> 14))
+
+== To run tox 35 ==
+sudo apt-get install python3-devel
+
