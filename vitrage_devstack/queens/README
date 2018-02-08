@@ -7,7 +7,7 @@ cd devstack/
 wget https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/queens/local.conf
 sudo hostname compute-0-0
 nohup ./stack.sh &
-tail -f nohup
+tail -f nohup.out
 
 == Env ==
 cd ~
@@ -64,5 +64,5 @@ pycharm
 (if resolution seems too big (settings->appearance->appearance->font to 14) and (setting->editor->font-> 14))
 
 == To run tox 35 ==
-sudo apt-get install python3-devel
+sudo apt-get install python3-dev
 
