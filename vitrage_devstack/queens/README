@@ -33,6 +33,8 @@ openstack stack create App_2 --template https://github.com/Idandos/somefiles/raw
 
 == Fix Heat ==
 sed -i.bak 's/stacks:global_index": "rule:deny_everybody/stacks:global_index": "/g' /etc/heat/policy.json
+edit /etc/heat/heat.conf and add policy_file = /etc/heat/policy.yaml
+And restart heat services
 
 == Install Zabbix ==
 wget https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/install_zabbix_on_devstack.sh
