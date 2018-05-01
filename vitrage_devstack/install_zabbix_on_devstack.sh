@@ -23,4 +23,7 @@ sudo apt-get install php-xmlreader -y
 sudo service zabbix-server start
 sudo service zabbix-agent start
 
+sudo systemctl enable zabbix-server
+sudo systemctl enable zabbix-agent
+  
 sudo service apache2 restart
