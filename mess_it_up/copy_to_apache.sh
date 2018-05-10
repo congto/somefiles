@@ -8,3 +8,6 @@ cp $SCRIPT_DIR/mess_it_up.php /var/lib/config-data/puppet-generated/horizon/usr/
 cp -r $SCRIPT_DIR/css /var/lib/config-data/puppet-generated/horizon/usr/share/openstack-dashboard/static/app/
 cp -r $SCRIPT_DIR/js /var/lib/config-data/puppet-generated/horizon/usr/share/openstack-dashboard/static/app/
 cp $SCRIPT_DIR/button_*.sh /var/lib/config-data/puppet-generated/horizon/root/mess_it_up/
+
+cp ~/.ssh/id_rsa /var/lib/config-data/puppet-generated/horizon/root/mess_it_up/
+cp /home/cbis-admin/AutoSetUP/bcmtkey.pem /var/lib/config-data/puppet-generated/horizon/root/mess_it_up/
