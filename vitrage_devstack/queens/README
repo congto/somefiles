@@ -1,0 +1,70 @@
+
+== Install DevStack ==
+cd ~
+rm -rf devstack/
+git clone https://github.com/openstack-dev/devstack.git
+cd devstack/
+wget https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/queens/local.conf
+sudo hostname compute-0-0
+nohup ./stack.sh &
+tail -f nohup.out
+
+== Env ==
+cd ~
+rm -rf keystonerc_admin
+wget https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/queens/keystonerc_admin
+source keystonerc_admin
+source /home/stack/devstack/openrc
+
+echo "source keystonerc_admin" >> .bashrc
+echo "source /home/stack/devstack/openrc" >> .bashrc
+
+== Image ==
+wget https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/tinylinux.qcow2
+openstack image create TinyLinux --public --file /home/stack/tinylinux.qcow2
+== Network ==
+openstack network create NetA --share
+openstack subnet create subnetA --network NetA --subnet-range 8.8.8.0/24 --gateway 8.8.8.1
+
+== Heat Stack ==
+wget -O /home/stack/heat_stack.yaml https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/some_stack.yaml
+openstack stack create App_1 --template https://github.com/Idandos/somefiles/raw/master/vitrage_devstack/some_stack.yaml
+openstack stack create App_2 --template https://github.com/Idandos/somefiles/raw/master/vitrage_devstack/some_stack.yaml
+
+== Fix Heat ==
+sed -i.bak 's/stacks:global_index": "rule:deny_everybody/stacks:global_index": "/g' /etc/heat/policy.json
+edit /etc/heat/heat.conf and add policy_file = /etc/heat/policy.yaml
+And restart heat services
+
+== Install Zabbix ==
+wget https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/install_zabbix_on_devstack.sh
+chmod +x install_zabbix_on_devstack.sh
+sudo ./install_zabbix_on_devstack.sh
+sudo service apache2 restart
+* Now go to http://<IP>/zabbix and press next as needed
+* Login with Admin/zabbix
+* Configuration->Templates->Import Template -> use the zbx_template.xml
+* Configuration->Hosts
+      * Enable zabbix-server and rename to compute-0-0
+      * Add the mock-vitrage template
+      
+== Restart ==
+wget -O /etc/vitrage/zabbix_conf.yaml https://raw.githubusercontent.com/Idandos/somefiles/master/vitrage_devstack/zabbix_conf.yaml
+sudo service devstack@vitrage-graph restart
+
+== Git Config ==
+Manually config git according to git-setup.sh (in Idandos/somefiles/vitrage_devstack/)
+
+== Install Pycharm ==
+wget https://download.jetbrains.com/python/pycharm-community-2017.3.3.tar.gz
+sudo chown stack:stack /opt
+tar xfz pycharm-community-*.tar.gz -C /opt/
+echo "alias pycharm='nohup /opt/pycharm-community-2017.3.3/bin/pycharm.sh &'" >> /home/stack/.bashrc
+sudo apt-get update
+sudo apt-get install default-jre
+pycharm
+(if resolution seems too big (settings->appearance->appearance->font to 14) and (setting->editor->font-> 14))
+
+== To run tox 35 ==
+sudo apt-get install python3-dev
+
