@@ -1,7 +1,7 @@
 <?php
     if (isset($_POST['a1']))
     {
-         exec('/idan/if_down_compute_0.sh');
+         exec('/root/mess_it_up/button_1.sh');
     }
     if (isset($_POST['a2']))
     {
@@ -9,11 +9,11 @@
     }
     if (isset($_POST['a3']))
     {
-         exec('/idan/if_up_compute_0.sh');
+         exec('/root/mess_it_up/button_2.sh');
     }
     if (isset($_POST['b1']))
     {
-         exec('/idan/if_down_compute_1.sh');
+         exec('/root/mess_it_up/button_3.sh');
     }
     if (isset($_POST['b2']))
     {
@@ -21,7 +21,7 @@
     }
     if (isset($_POST['b3']))
     {
-         exec('/idan/if_up_compute_1.sh');
+         exec('/root/mess_it_up/button_4.sh');
     }
 ?>
 <html lang="en">
